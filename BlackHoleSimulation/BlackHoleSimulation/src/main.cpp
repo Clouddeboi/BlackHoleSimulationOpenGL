@@ -2,6 +2,16 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 #include <iostream>
+#include <glm/glm.hpp>
+
+using namespace glm;
+
+struct BlackHole {
+    vec2 position;
+    float mass;//Mass (for gravity calculations)
+    float r_s;//Radius of the event horizon
+    float strength;//lensing strength
+};
 
 int main() {
     //Initialize GLFW
@@ -33,6 +43,9 @@ int main() {
         std::cerr << "Failed to initialize GLAD" << std::endl;
         return -1;
     }
+
+    //BlackHole instance with default values
+    BlackHole blackHole = {vec2(0.0f, 0.0f), 1.0f, 0.2f, 5.0f };
 
     //Main loop that keeps running until we close the window
     while (!glfwWindowShouldClose(window)) {
