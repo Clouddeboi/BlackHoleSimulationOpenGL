@@ -376,27 +376,38 @@ int main() {
         //Draw the circle representing the black hole
         drawCircle(blackHole, aspect);
 
-        //Draw a ray
-        if (uOffsetLoc != -1) glUniform2f(uOffsetLoc, 0.0f, 0.0f);
+        ////Draw a ray
+        //if (uOffsetLoc != -1) glUniform2f(uOffsetLoc, 0.0f, 0.0f);
 
-        //initial ray paramaters
-        vec2 rayStart = vec2(-0.9f / aspect, 0.5f + 0.5f * sin(timeElapsed));
-        vec2 rayDir = vec2(1.0f, 0.0f);
+        ////initial ray paramaters
+        //vec2 rayStart = vec2(-0.9f / aspect, 0.5f + 0.5f * sin(timeElapsed));
+        //vec2 rayDir = vec2(1.0f, 0.0f);
+
+        //Base vertical offest for ray changes with elapsed time
+        float baseY = 0.5f + 0.5f * sin(timeElapsed);
 
         //Integration param
+        int numRays = 5;
         float dt = 0.01f;
         int maxSteps = 2000;
 
-        //Compute the path on CPU
-        std::vector<vec2> rayPath = computeRayPath(blackHole, rayStart, rayDir, aspect, maxSteps, dt);
+        for (int i = 0; i < numRays; ++i) {
+            //Vary the start pos of the rays 
+            float yStart = baseY - 0.08f + i * 0.04f;
+            vec2 rayStart = vec2(-0.9f / aspect, yStart);
+            vec2 rayDir = vec2(1.0f, 0.0f);
 
-        //Upload path vertices to the VBO and draw the line
-        if (!rayPath.empty()) {
-            updateRayVBO(rayPath);
-            //Set the ray color
-            if (uColorLoc != -1) glUniform4f(uColorLoc, 0.0f, 0.2f, 1.0f, 1.0f);
-            //Draw the ray as a connected strip of lines
-            drawRay((int)rayPath.size());
+            //Compute the path on CPU
+            auto path = computeRayPath(blackHole, rayStart, rayDir, aspect, maxSteps, dt);
+
+            //Upload path vertices to the VBO and draw the line
+            if (!path.empty()) {
+                updateRayVBO(path);
+                //Set the ray color
+                if (uColorLoc != -1) glUniform4f(uColorLoc, 0.0f, 0.2f, 1.0f, 1.0f);
+                //Draw the ray as a connected strip of lines
+                drawRay((int)path.size());
+            }
         }
 
         //Swap the front and back buffers
