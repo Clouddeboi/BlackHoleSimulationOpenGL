@@ -213,6 +213,46 @@ void setupRayBuffers() {
     glBindVertexArray(0);
 }
 
+//Method to compute acceleration given the position
+vec2 acceleration(const BlackHole& bh, vec2 pos, float aspect) {
+    vec2 bhRenderPos = vec2(bh.position.x / aspect, bh.position.y);
+    vec2 d = pos - bhRenderPos;
+    float r = length(d);
+    if (r < bh.r_s) return vec2(0.0f);//if inside the event horizon there is no more acceleration needed
+
+    float eps = 1e-6f;
+    float denom = r * r * r + eps;
+    return -bh.strength * bh.mass * d / denom;
+}
+
+//RK4 integration (velocity and position)
+void rk4Step(const BlackHole& bh, vec2& pos, vec2& velocity, float dt, float aspect) {
+    //Helper for acceleration
+    auto acc = [&](vec2 p) {
+        return acceleration(bh, p, aspect);
+    };
+
+    //k1
+    vec2 k1_v = acc(pos) * dt;
+    vec2 k1_p = velocity * dt;
+
+    // k2
+    vec2 k2_v = acc(pos + k1_p * 0.5f) * dt;
+    vec2 k2_p = (velocity + k1_v * 0.5f) * dt;
+
+    // k3
+    vec2 k3_v = acc(pos + k2_p * 0.5f) * dt;
+    vec2 k3_p = (velocity + k2_v * 0.5f) * dt;
+
+    // k4
+    vec2 k4_v = acc(pos + k3_p) * dt;
+    vec2 k4_p = (velocity + k3_v) * dt;
+
+    //Update velocity and position
+    velocity += (k1_v + 2.0f * k2_v + 2.0f * k3_v + k4_v) / 6.0f;
+    pos += (k1_p + 2.0f * k2_p + 2.0f * k3_p + k4_p) / 6.0f;
+}
+
 /// <summary>
 /// We are using the CPU to calculate each of the rays movement
 /// This is a simplified version, it is not physically perfect (we are not using the GPU yet)
@@ -244,16 +284,7 @@ std::vector<vec2> computeRayPath(const BlackHole& bh, vec2 startPos, vec2 dir, f
             break;
         }
 
-        //Gravitational acceleration:
-        //a = -strength * mass * d/r^3
-        float eps = 1e-6f;
-        float denom = r * r * r + eps;
-        vec2 acc = -bh.strength * bh.mass * d / denom;
-
-        //Eulers integrate velocity and position
-        velocity += acc * dt;
-        //velocity = normalize(velocity);
-        pos += velocity * dt;
+        rk4Step(bh, pos, velocity, dt, aspect);
 
         //Stop the loop if we exit a reasonable bounding area
         //this is to avoid wasting steps
