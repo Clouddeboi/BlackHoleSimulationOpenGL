@@ -7,6 +7,8 @@
 #include <sstream>
 #include <string>
 #include <glm/glm.hpp>
+#include <cmath>
+#include <vector>
 
 using namespace glm;
 
@@ -18,7 +20,6 @@ struct BlackHole {
 };
 
 //Globals for circle rendering
-
 //Vertex Array object and vertex buffer object
 unsigned int VAO, VBO;
 
@@ -29,6 +30,14 @@ unsigned int shaderProgram;
 //The circle is what our black hole will be represented as
 const int NUM_SEGMENTS = 50;
 const float RADIUS = 0.2f;
+
+//Globals for ray rendering
+unsigned int rayVAO, rayVBO;
+int rayMaxPoints = 2000;//Max amount of vertices the ray can have
+
+//Uniform locations cached
+int uColorLoc = -1;
+int uOffsetLoc = -1;
 
 //Loading shader source code from a text file
 std::string loadShaderSource(const char* filepath) {
@@ -69,6 +78,7 @@ unsigned int compileShader(const char* source, GLenum type) {
     return shader;//return compiled shader ID
 }
 
+//Setting up the circle mesh
 void setupCircle(GLFWwindow* window) {
     //Create an array to store circle vertex positions (x,y)
     //using a triangle fan
@@ -154,14 +164,112 @@ void setupCircle(GLFWwindow* window) {
 }
 
 //Renders the circle each frame
-void drawCircle() {
+void drawCircle(const BlackHole& bh, float aspect) {
     //Use shader program
     glUseProgram(shaderProgram);
+
+    //Black hole offest in the render space
+    vec2 bhRenderOffest = vec2(bh.position.x / aspect, bh.position.y);
+    if (uOffsetLoc != -1) {
+        glUniform2f(uOffsetLoc, bhRenderOffest.x, bhRenderOffest.y);
+    }
+
     //Bind the VAO with our circle data
     glBindVertexArray(VAO);
     //Draw circle as a triangluar fan
     glDrawArrays(GL_TRIANGLE_FAN, 0, NUM_SEGMENTS + 2);
     //unBind the VAO for safety
+    glBindVertexArray(0);
+}
+
+//Setup VAO/VBO for drawing the ray dynamically
+void setupRayBuffers() {
+    glGenVertexArrays(1, &rayVAO);
+    glBindVertexArray(rayVAO);
+
+    glGenBuffers(1, &rayVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, rayVBO);
+
+    //Preallocating enough space for rayMaxPoints vec2 vertices
+    glBufferData(GL_ARRAY_BUFFER, rayMaxPoints * sizeof(vec2), nullptr, GL_DYNAMIC_DRAW);
+
+    //Vertex layout matches shader location 0
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(vec2), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    //Unbind
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+}
+
+/// <summary>
+/// We are using the CPU to calculate each of the rays movement
+/// This is a simplified version, it is not physically perfect (we are not using the GPU yet)
+/// We are using a Newtonian approach, using newtons gravity formula's and not Einstein's curved space time equations
+/// The blackhole pos (bh.position) is expected in NDC(normalized device coords) where both x and y range from -1 to 1
+/// startpos is the rays starting position in the render space
+/// dir is the direction the ray starts moving
+/// dt is the step size
+/// </summary>
+std::vector<vec2> computeRayPath(const BlackHole& bh, vec2 startPos, vec2 dir, float aspect, int maxSteps, float dt) {
+    std::vector<vec2> path;
+    path.reserve(maxSteps);
+
+    //Convert the black holes position to the same render space used by the vertices
+    vec2 bhRenderPos = vec2(bh.position.x / aspect, bh.position.y);
+
+    vec2 pos = startPos;
+    vec2 velocity = normalize(dir);
+
+    for (int i = 0; i < maxSteps; i++) {
+        path.push_back(pos);
+
+        //vector from ray point to the BH center
+        vec2 d = pos - bhRenderPos;
+        float r = length(d);
+
+        //If we cross the event horizon, we stop (ray is captured)
+        if (r < bh.r_s) {
+            break;
+        }
+
+        //Gravitational acceleration:
+        //a = -strength * mass * d/r^3
+        float eps = 1e-6f;
+        float denom = r * r * r + eps;
+        vec2 acc = -bh.strength * bh.mass * d / denom;
+
+        //Eulers integrate velocity and position
+        velocity += acc * dt;
+        //velocity = normalize(velocity);
+        pos += velocity * dt;
+
+        //Stop the loop if we exit a reasonable bounding area
+        //this is to avoid wasting steps
+        if (pos.x > 1.2f / aspect || pos.x < -1.2f / aspect || pos.y > 1.2f || pos.y < -1.2f) {
+            break;
+        }
+    }
+    return path;
+}
+
+//Upload the computed path into the dynamic ray VBO
+void updateRayVBO(const std::vector<vec2>& path) {
+    glBindBuffer(GL_ARRAY_BUFFER, rayVBO);
+
+    //Only upload the used prefix this buffer was preallocated
+    GLsizeiptr size = (GLsizeiptr)path.size() * sizeof(vec2);
+    if (size > 0) {
+        glBufferSubData(GL_ARRAY_BUFFER, 0, size, path.data());
+    }
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
+//Draw the ray
+void drawRay(int vertexCount) {
+    glLineWidth(2.0f);
+    glBindVertexArray(rayVAO);
+    glDrawArrays(GL_LINE_STRIP, 0, vertexCount);
     glBindVertexArray(0);
 }
 
@@ -198,20 +306,52 @@ int main() {
 
     //Prep the circle shape and shaders before we start rendering
     setupCircle(window);
+    setupRayBuffers();
 
     //BlackHole instance with default values
-    //BlackHole blackHole = {vec2(0.0f, 0.0f), 1.0f, 0.2f, 5.0f };
+    BlackHole blackHole = {vec2(0.0f, 0.0f), 2.0f, RADIUS, 5.0f };
 
     //Main loop that keeps running until we close the window
     while (!glfwWindowShouldClose(window)) {
+        //get the current framebuffer size (for window resizing)
+        int width, height;
+        glfwGetFramebufferSize(window, &width, &height);
+        float aspect = (float)width / (float)height;
+
         //Set the background clear colour to white
         glClearColor(1.f, 1.f, 1.f, 1.f);
 
         //Clears the screen with the current clear color
         glClear(GL_COLOR_BUFFER_BIT);
 
+        //Use the shader program
+        glUseProgram(shaderProgram);
+
         //Draw the circle representing the black hole
-        drawCircle();
+        drawCircle(blackHole, aspect);
+
+        //Draw a ray
+        if (uOffsetLoc != -1) glUniform2f(uOffsetLoc, 0.0f, 0.0f);
+
+        //initial ray paramaters
+        vec2 rayStart = vec2(-0.9f / aspect, 0.5f);
+        vec2 rayDir = vec2(1.0f, 0.0f);
+
+        //Integration param
+        float dt = 0.01f;
+        int maxSteps = 2000;
+
+        //Compute the path on CPU
+        std::vector<vec2> path = computeRayPath(blackHole, rayStart, rayDir, aspect, maxSteps, dt);
+
+        //Upload path vertices to the VBO and draw the line
+        if (!path.empty()) {
+            updateRayVBO(path);
+            //Set the ray color
+            if (uColorLoc != -1) glUniform4f(uColorLoc, 0.0f, 0.2f, 1.0f, 1.0f);
+            //Draw the ray as a connected strip of lines
+            drawRay((int)path.size());
+        }
 
         //Swap the front and back buffers
         //(Double Buffering)

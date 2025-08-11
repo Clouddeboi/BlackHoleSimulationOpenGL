@@ -41,5 +41,11 @@
     <None Include="shaders\blackHole\shader.vert">
       <Filter>shaders\blackHole</Filter>
     </None>
+    <None Include="shaders\ray\shader.vert">
+      <Filter>shaders\ray</Filter>
+    </None>
+    <None Include="shaders\ray\shader.frag">
+      <Filter>shaders\ray</Filter>
+    </None>
   </ItemGroup>
 </Project>
