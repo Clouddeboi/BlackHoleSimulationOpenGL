@@ -12,6 +12,9 @@
 
 using namespace glm;
 
+//Variable for tracking the time passed
+float timeElapsed = 0.0f;
+
 struct BlackHole {
     vec2 position;
     float mass;//Mass (for gravity calculations)
@@ -137,6 +140,9 @@ void setupCircle(GLFWwindow* window) {
         std::cerr << "Shader program linking failed:\n" << infoLog << std::endl;
     }
 
+    uColorLoc = glGetUniformLocation(shaderProgram, "uColor");
+    uOffsetLoc = glGetUniformLocation(shaderProgram, "uOffset");
+
     //After linking the shaders no longer are needed individually
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
@@ -161,6 +167,11 @@ void setupCircle(GLFWwindow* window) {
     //Unbind VBO and VAO to avoid accidental changes
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+
+    // Cache uniform locations here for efficiency
+    glUseProgram(shaderProgram);
+    uColorLoc = glGetUniformLocation(shaderProgram, "uColor");
+    uOffsetLoc = glGetUniformLocation(shaderProgram, "uOffset");
 }
 
 //Renders the circle each frame
@@ -313,6 +324,10 @@ int main() {
 
     //Main loop that keeps running until we close the window
     while (!glfwWindowShouldClose(window)) {
+
+        //Per frame increments
+        timeElapsed += 0.01f;
+
         //get the current framebuffer size (for window resizing)
         int width, height;
         glfwGetFramebufferSize(window, &width, &height);
@@ -334,7 +349,7 @@ int main() {
         if (uOffsetLoc != -1) glUniform2f(uOffsetLoc, 0.0f, 0.0f);
 
         //initial ray paramaters
-        vec2 rayStart = vec2(-0.9f / aspect, 0.5f);
+        vec2 rayStart = vec2(-0.9f / aspect, 0.5f + 0.5f * sin(timeElapsed));
         vec2 rayDir = vec2(1.0f, 0.0f);
 
         //Integration param
@@ -342,15 +357,15 @@ int main() {
         int maxSteps = 2000;
 
         //Compute the path on CPU
-        std::vector<vec2> path = computeRayPath(blackHole, rayStart, rayDir, aspect, maxSteps, dt);
+        std::vector<vec2> rayPath = computeRayPath(blackHole, rayStart, rayDir, aspect, maxSteps, dt);
 
         //Upload path vertices to the VBO and draw the line
-        if (!path.empty()) {
-            updateRayVBO(path);
+        if (!rayPath.empty()) {
+            updateRayVBO(rayPath);
             //Set the ray color
             if (uColorLoc != -1) glUniform4f(uColorLoc, 0.0f, 0.2f, 1.0f, 1.0f);
             //Draw the ray as a connected strip of lines
-            drawRay((int)path.size());
+            drawRay((int)rayPath.size());
         }
 
         //Swap the front and back buffers
