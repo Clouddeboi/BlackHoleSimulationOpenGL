@@ -19,6 +19,12 @@
     <Filter Include="bin">
       <UniqueIdentifier>{39107c7c-7a7c-46f1-949f-133f0cc58220}</UniqueIdentifier>
     </Filter>
+    <Filter Include="shaders\blackHole">
+      <UniqueIdentifier>{331553c8-4ca8-4b5c-bccb-c113b61a8640}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="shaders\ray">
+      <UniqueIdentifier>{e4c65fe4-381f-44a6-a9ca-fc07bd3d473b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -29,11 +35,11 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="shaders\shader.vert">
-      <Filter>shaders</Filter>
+    <None Include="shaders\blackHole\shader.frag">
+      <Filter>shaders\blackHole</Filter>
     </None>
-    <None Include="shaders\shader.frag">
-      <Filter>shaders</Filter>
+    <None Include="shaders\blackHole\shader.vert">
+      <Filter>shaders\blackHole</Filter>
     </None>
   </ItemGroup>
 </Project>

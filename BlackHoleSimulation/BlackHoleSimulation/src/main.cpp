@@ -96,8 +96,8 @@ void setupCircle(GLFWwindow* window) {
     }
 
     //Load vert and frag shader source code from the files
-    std::string vertexCode = loadShaderSource("shaders/shader.vert");
-    std::string fragmentCode = loadShaderSource("shaders/shader.frag");
+    std::string vertexCode = loadShaderSource("shaders/blackHole/shader.vert");
+    std::string fragmentCode = loadShaderSource("shaders/blackHole/shader.frag");
 
     if (vertexCode.empty() || fragmentCode.empty()) {
         std::cerr << "Shader source empty, aborting setup." << std::endl;
