@@ -36,8 +36,8 @@ struct Particle {
     bool alive = true;
 };
 
-int numRays = 1000;
-int maxTrailLen = 150;//max amount of points
+int numRays = 100;
+int maxTrailLen = 50;//max amount of points
 std::vector<Particle> particles;
 
 //Globals for circle rendering
@@ -46,6 +46,7 @@ unsigned int VAO, VBO;
 
 //Shader program handle
 unsigned int shaderProgram;
+unsigned int rayShaderProgram;
 
 //Number of triangles needed to approx. the circle and the radius
 //The circle is what our black hole will be represented as
@@ -97,6 +98,38 @@ unsigned int compileShader(const char* source, GLenum type) {
             << " shader compilation failed:\n" << infoLog << std::endl;
     }
     return shader;//return compiled shader ID
+}
+
+void setupRayShader() {
+    std::string vertexCode = loadShaderSource("shaders/ray/shader.vert");
+    std::string fragmentCode = loadShaderSource("shaders/ray/shader.frag");
+
+    if (vertexCode.empty() || fragmentCode.empty()) {
+        std::cerr << "Ray shader source empty, aborting setup." << std::endl;
+        return;
+    }
+
+    const char* vertexSource = vertexCode.c_str();
+    const char* fragmentSource = fragmentCode.c_str();
+
+    unsigned int vertexShader = compileShader(vertexSource, GL_VERTEX_SHADER);
+    unsigned int fragmentShader = compileShader(fragmentSource, GL_FRAGMENT_SHADER);
+
+    rayShaderProgram = glCreateProgram();
+    glAttachShader(rayShaderProgram, vertexShader);
+    glAttachShader(rayShaderProgram, fragmentShader);
+    glLinkProgram(rayShaderProgram);
+
+    int success;
+    char infoLog[512];
+    glGetProgramiv(rayShaderProgram, GL_LINK_STATUS, &success);
+    if (!success) {
+        glGetProgramInfoLog(rayShaderProgram, 512, nullptr, infoLog);
+        std::cerr << "Ray shader program linking failed:\n" << infoLog << std::endl;
+    }
+
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
 }
 
 //Setting up the circle mesh
@@ -306,6 +339,7 @@ void updateRayVBO(const std::vector<vec2>& path) {
 
 //Draw the ray
 void drawRay(int vertexCount) {
+    glUseProgram(rayShaderProgram);
     glLineWidth(2.0f);
     glBindVertexArray(rayVAO);
     glDrawArrays(GL_LINE_STRIP, 0, vertexCount);
@@ -378,13 +412,15 @@ int main() {
     setupCircle(window);
     setupRayBuffers();
 
+    setupRayShader();
+
     //Initialize particles once
     particles.resize(numRays);
     for (int i = 0; i < numRays; ++i) {
         float yStart = 0.5f - 0.1f + i * 0.08f;
         vec2 startPos = vec2(-1.0f / 1.0f, yStart);
         vec2 startDir = normalize(vec2(1.0f, 0.0f));
-        float speed = 2.0f;
+        float speed = 0.01f;
         particles[i].pos = startPos;
         particles[i].vel = startDir * speed;
         particles[i].trail.clear();
@@ -408,7 +444,7 @@ int main() {
         float aspect = (float)width / (float)height;
 
         //Set the background clear colour to white
-        glClearColor(1.f, 1.f, 1.f, 1.f);
+        glClearColor(0.43137254901960786f, 0.3176470588235294f, 0.5058823529411764f, 1.f);
 
         //Clears the screen with the current clear color
         glClear(GL_COLOR_BUFFER_BIT);
