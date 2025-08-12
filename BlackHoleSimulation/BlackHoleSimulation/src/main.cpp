@@ -22,6 +22,24 @@ struct BlackHole {
     float strength;//lensing strength
 };
 
+//struct GeodesicState {
+//    float r;//radial coord
+//    float phi;//angular coord
+//    float pr;//radial momentum
+//    float L;//angular momentum (constant)
+//};
+
+struct Particle {
+    vec2 pos;
+    vec2 vel;
+    std::vector<vec2> trail;//Recent positions for the visible trail
+    bool alive = true;
+};
+
+int numRays = 35;
+int maxTrailLen = 150;//max amount of points
+std::vector<Particle> particles;
+
 //Globals for circle rendering
 //Vertex Array object and vertex buffer object
 unsigned int VAO, VBO;
@@ -225,73 +243,52 @@ vec2 acceleration(const BlackHole& bh, vec2 pos, float aspect) {
     return -bh.strength * bh.mass * d / denom;
 }
 
-//RK4 integration (velocity and position)
-void rk4Step(const BlackHole& bh, vec2& pos, vec2& velocity, float dt, float aspect) {
-    //Helper for acceleration
-    auto acc = [&](vec2 p) {
-        return acceleration(bh, p, aspect);
-    };
-
-    //k1
-    vec2 k1_v = acc(pos) * dt;
-    vec2 k1_p = velocity * dt;
-
-    // k2
-    vec2 k2_v = acc(pos + k1_p * 0.5f) * dt;
-    vec2 k2_p = (velocity + k1_v * 0.5f) * dt;
-
-    // k3
-    vec2 k3_v = acc(pos + k2_p * 0.5f) * dt;
-    vec2 k3_p = (velocity + k2_v * 0.5f) * dt;
-
-    // k4
-    vec2 k4_v = acc(pos + k3_p) * dt;
-    vec2 k4_p = (velocity + k3_v) * dt;
-
-    //Update velocity and position
-    velocity += (k1_v + 2.0f * k2_v + 2.0f * k3_v + k4_v) / 6.0f;
-    pos += (k1_p + 2.0f * k2_p + 2.0f * k3_p + k4_p) / 6.0f;
-}
-
-/// <summary>
-/// We are using the CPU to calculate each of the rays movement
-/// This is a simplified version, it is not physically perfect (we are not using the GPU yet)
-/// We are using a Newtonian approach, using newtons gravity formula's and not Einstein's curved space time equations
-/// The blackhole pos (bh.position) is expected in NDC(normalized device coords) where both x and y range from -1 to 1
-/// startpos is the rays starting position in the render space
-/// dir is the direction the ray starts moving
-/// dt is the step size
-/// </summary>
-std::vector<vec2> computeRayPath(const BlackHole& bh, vec2 startPos, vec2 dir, float aspect, int maxSteps, float dt) {
+//Compute ray path by integrating position and velocity (cartesian RK4)
+std::vector<vec2> computeRayPathNewtonian(const BlackHole& bh, vec2 startPos, vec2 startVel, int maxSteps, float dt, float aspect) {
     std::vector<vec2> path;
     path.reserve(maxSteps);
 
-    //Convert the black holes position to the same render space used by the vertices
-    vec2 bhRenderPos = vec2(bh.position.x / aspect, bh.position.y);
-
     vec2 pos = startPos;
-    vec2 velocity = normalize(dir);
+    vec2 vel = startVel;
 
-    for (int i = 0; i < maxSteps; i++) {
-        path.push_back(pos);
+    for (int i = 0; i < maxSteps; ++i) {
+        //stop if inside event horizon (bh.r_s is in render space units)
+        vec2 bhRenderPos = vec2(bh.position.x / aspect, bh.position.y);
+        float r = length(pos - bhRenderPos);
+        if (r <= bh.r_s) break;
 
-        //vector from ray point to the BH center
-        vec2 d = pos - bhRenderPos;
-        float r = length(d);
+        //record the vertex
+        path.emplace_back(pos);
 
-        //If we cross the event horizon, we stop (ray is captured)
-        if (r < bh.r_s) {
-            break;
-        }
+        //RK4 integration for pos & vel using acceleration() helper
+        auto acc = [&](const vec2& p) {
+            return acceleration(bh, p, aspect);
+            };
 
-        rk4Step(bh, pos, velocity, dt, aspect);
+        //k1
+        vec2 k1_v = acc(pos) * dt;
+        vec2 k1_p = vel * dt;
 
-        //Stop the loop if we exit a reasonable bounding area
-        //this is to avoid wasting steps
-        if (pos.x > 1.2f / aspect || pos.x < -1.2f / aspect || pos.y > 1.2f || pos.y < -1.2f) {
-            break;
-        }
+        //k2
+        vec2 k2_v = acc(pos + 0.5f * k1_p) * dt;
+        vec2 k2_p = (vel + 0.5f * k1_v) * dt;
+
+        //k3
+        vec2 k3_v = acc(pos + 0.5f * k2_p) * dt;
+        vec2 k3_p = (vel + 0.5f * k2_v) * dt;
+
+        //k4
+        vec2 k4_v = acc(pos + k3_p) * dt;
+        vec2 k4_p = (vel + k3_v) * dt;
+
+        //update vel and pos
+        vel += (k1_v + 2.0f * k2_v + 2.0f * k3_v + k4_v) / 6.0f;
+        pos += (k1_p + 2.0f * k2_p + 2.0f * k3_p + k4_p) / 6.0f;
+
+        //break if pos goes off screen
+        if (fabs(pos.x) > 5.0f || fabs(pos.y) > 5.0f) break;
     }
+
     return path;
 }
 
@@ -313,6 +310,37 @@ void drawRay(int vertexCount) {
     glBindVertexArray(rayVAO);
     glDrawArrays(GL_LINE_STRIP, 0, vertexCount);
     glBindVertexArray(0);
+}
+
+//single RK4 step in cartesian coords (updates pos & vel)
+void integrateParticleRK4(const BlackHole& bh, Particle& p, float dt, float aspect) {
+    auto acc = [&](const vec2& x)->vec2 { return acceleration(bh, x, aspect); };
+
+    //k1
+    vec2 k1_v = acc(p.pos);
+    vec2 k1_p = p.vel;
+
+    //k2
+    vec2 p_k2 = p.pos + 0.5f * dt * k1_p;
+    vec2 v_k2 = p.vel + 0.5f * dt * k1_v;
+    vec2 k2_v = acc(p_k2);
+    vec2 k2_p = v_k2;
+
+    //k3
+    vec2 p_k3 = p.pos + 0.5f * dt * k2_p;
+    vec2 v_k3 = p.vel + 0.5f * dt * k2_v;
+    vec2 k3_v = acc(p_k3);
+    vec2 k3_p = v_k3;
+
+    //k4
+    vec2 p_k4 = p.pos + dt * k3_p;
+    vec2 v_k4 = p.vel + dt * k3_v;
+    vec2 k4_v = acc(p_k4);
+    vec2 k4_p = v_k4;
+
+    //update
+    p.pos += (dt / 6.0f) * (k1_p + 2.0f * k2_p + 2.0f * k3_p + k4_p);
+    p.vel += (dt / 6.0f) * (k1_v + 2.0f * k2_v + 2.0f * k3_v + k4_v);
 }
 
 int main() {
@@ -350,8 +378,23 @@ int main() {
     setupCircle(window);
     setupRayBuffers();
 
+    //Initialize particles once
+    particles.resize(numRays);
+    for (int i = 0; i < numRays; ++i) {
+        float yStart = 0.5f - 0.1f + i * 0.08f;
+        vec2 startPos = vec2(-0.9f / 1.0f, yStart);
+        vec2 startDir = normalize(vec2(1.0f, 0.0f));
+        float speed = 2.0f;
+        particles[i].pos = startPos;
+        particles[i].vel = startDir * speed;
+        particles[i].trail.clear();
+        particles[i].trail.reserve(maxTrailLen);
+        particles[i].trail.push_back(particles[i].pos);
+        particles[i].alive = true;
+    }
+
     //BlackHole instance with default values
-    BlackHole blackHole = {vec2(0.0f, 0.0f), 2.0f, RADIUS, 5.0f };
+    BlackHole blackHole = {vec2(0.0f, 0.0f), 0.75f, RADIUS, 50.0f };
 
     //Main loop that keeps running until we close the window
     while (!glfwWindowShouldClose(window)) {
@@ -377,36 +420,56 @@ int main() {
         drawCircle(blackHole, aspect);
 
         ////Draw a ray
-        //if (uOffsetLoc != -1) glUniform2f(uOffsetLoc, 0.0f, 0.0f);
-
-        ////initial ray paramaters
-        //vec2 rayStart = vec2(-0.9f / aspect, 0.5f + 0.5f * sin(timeElapsed));
-        //vec2 rayDir = vec2(1.0f, 0.0f);
+        if (uOffsetLoc != -1) glUniform2f(uOffsetLoc, 0.0f, 0.0f);;
 
         //Base vertical offest for ray changes with elapsed time
         float baseY = 0.5f + 0.5f * sin(timeElapsed);
 
         //Integration param
-        int numRays = 5;
-        float dt = 0.01f;
-        int maxSteps = 2000;
+        float dt = 0.004f;
+
+        glEnable(GL_PROGRAM_POINT_SIZE);
 
         for (int i = 0; i < numRays; ++i) {
-            //Vary the start pos of the rays 
-            float yStart = baseY - 0.08f + i * 0.04f;
-            vec2 rayStart = vec2(-0.9f / aspect, yStart);
-            vec2 rayDir = vec2(1.0f, 0.0f);
+            Particle& p = particles[i];
 
-            //Compute the path on CPU
-            auto path = computeRayPath(blackHole, rayStart, rayDir, aspect, maxSteps, dt);
+            //Reset particle when it dies or goes offscreen
+            vec2 bhRenderPos = vec2(blackHole.position.x / aspect, blackHole.position.y);
+            if (!p.alive || length(p.pos - bhRenderPos) <= blackHole.r_s || fabs(p.pos.x) > 5.0f || fabs(p.pos.y) > 5.0f) {
+                //respawn at left with vertical jitter driven by baseY so it animates
+                float yStart = baseY - 0.1f + i * 0.08f;
+                p.pos = vec2(-0.9f / aspect, yStart);
+                p.vel = normalize(vec2(1.0f, 0.0f)) * 2.0f;
+                p.trail.clear();
+                p.trail.push_back(p.pos);
+                p.alive = true;
+            }
 
-            //Upload path vertices to the VBO and draw the line
-            if (!path.empty()) {
-                updateRayVBO(path);
-                //Set the ray color
-                if (uColorLoc != -1) glUniform4f(uColorLoc, 0.0f, 0.2f, 1.0f, 1.0f);
-                //Draw the ray as a connected strip of lines
-                drawRay((int)path.size());
+            //advance particle one integration step
+            integrateParticleRK4(blackHole, p, dt, aspect);
+
+            //push into trail
+            p.trail.push_back(p.pos);
+            if ((int)p.trail.size() > maxTrailLen) p.trail.erase(p.trail.begin()); //pop front
+
+            //upload trail to VBO and draw
+            if (!p.trail.empty()) {
+                GLsizeiptr size = (GLsizeiptr)p.trail.size() * sizeof(vec2);
+                glBindBuffer(GL_ARRAY_BUFFER, rayVBO);
+                glBufferSubData(GL_ARRAY_BUFFER, 0, size, p.trail.data());
+                glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+                //set ray color
+                if (uColorLoc != -1) glUniform4f(uColorLoc, 0.0f, 0.0f, 0.0f, 1.0f);
+
+                //draw trail
+                drawRay((int)p.trail.size());
+
+                //draw head as point
+                glPointSize(6.0f);
+                glBindVertexArray(rayVAO);
+                glDrawArrays(GL_POINTS, 0, 1);
+                glBindVertexArray(0);
             }
         }
 
