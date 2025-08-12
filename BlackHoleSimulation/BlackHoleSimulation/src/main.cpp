@@ -36,7 +36,7 @@ struct Particle {
     bool alive = true;
 };
 
-int numRays = 35;
+int numRays = 1000;
 int maxTrailLen = 150;//max amount of points
 std::vector<Particle> particles;
 
@@ -118,7 +118,7 @@ void setupCircle(GLFWwindow* window) {
     for (int i = 0; i <= NUM_SEGMENTS; i++) {
         //Angle in radians
         float angle = 2.0f * 3.1415926f * float(i) / float(NUM_SEGMENTS);
-        
+
         //x = r * cos(theta)
         circleVertices[2 * (i + 1)] = RADIUS * cos(angle) / aspectRatio;
 
@@ -186,7 +186,7 @@ void setupCircle(GLFWwindow* window) {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
-    // Cache uniform locations here for efficiency
+    //Cache uniform locations here for efficiency
     glUseProgram(shaderProgram);
     uColorLoc = glGetUniformLocation(shaderProgram, "uColor");
     uOffsetLoc = glGetUniformLocation(shaderProgram, "uOffset");
@@ -382,7 +382,7 @@ int main() {
     particles.resize(numRays);
     for (int i = 0; i < numRays; ++i) {
         float yStart = 0.5f - 0.1f + i * 0.08f;
-        vec2 startPos = vec2(-0.9f / 1.0f, yStart);
+        vec2 startPos = vec2(-1.0f / 1.0f, yStart);
         vec2 startDir = normalize(vec2(1.0f, 0.0f));
         float speed = 2.0f;
         particles[i].pos = startPos;
@@ -394,7 +394,7 @@ int main() {
     }
 
     //BlackHole instance with default values
-    BlackHole blackHole = {vec2(0.0f, 0.0f), 0.75f, RADIUS, 50.0f };
+    BlackHole blackHole = { vec2(0.0f, 0.0f), 0.5f, RADIUS, 1050.0f };
 
     //Main loop that keeps running until we close the window
     while (!glfwWindowShouldClose(window)) {
@@ -433,13 +433,48 @@ int main() {
         for (int i = 0; i < numRays; ++i) {
             Particle& p = particles[i];
 
-            //Reset particle when it dies or goes offscreen
+            //Random float helper
+            auto randf = [](float min, float max) {
+                return min + (max - min) * (rand() / (float)RAND_MAX);
+                };
+
             vec2 bhRenderPos = vec2(blackHole.position.x / aspect, blackHole.position.y);
-            if (!p.alive || length(p.pos - bhRenderPos) <= blackHole.r_s || fabs(p.pos.x) > 5.0f || fabs(p.pos.y) > 5.0f) {
-                //respawn at left with vertical jitter driven by baseY so it animates
-                float yStart = baseY - 0.1f + i * 0.08f;
-                p.pos = vec2(-0.9f / aspect, yStart);
-                p.vel = normalize(vec2(1.0f, 0.0f)) * 2.0f;
+
+            if (!p.alive || length(p.pos - bhRenderPos) <= blackHole.r_s ||
+                fabs(p.pos.x) > 5.0f || fabs(p.pos.y) > 5.0f)
+            {
+                //Choose one of four edges: 0=left,1=right,2=top,3=bottom
+                int edge = rand() % 4;
+
+                vec2 spawnPos;
+                vec2 baseVel;
+
+                switch (edge) {
+                case 0:
+                    spawnPos = vec2(-5.0f / aspect, randf(-5.0f, 5.0f));
+                    baseVel = vec2(1.0f, 0.0f);//moving right
+                    break;
+                case 1: 
+                    spawnPos = vec2(5.0f / aspect, randf(-5.0f, 5.0f));
+                    baseVel = vec2(-1.0f, 0.0f);//moving left
+                    break;
+                case 2:
+                    spawnPos = vec2(randf(-5.0f / aspect, 5.0f / aspect), 5.0f);
+                    baseVel = vec2(0.0f, -1.0f);//moving down
+                    break;
+                case 3:
+                    spawnPos = vec2(randf(-5.0f / aspect, 5.0f / aspect), -5.0f);
+                    baseVel = vec2(0.0f, 1.0f);//moving up
+                    break;
+                }
+
+                //Add small random angle offset for velocity
+                float angleOffset = randf(-0.3f, 0.3f);
+                float ca = cos(angleOffset), sa = sin(angleOffset);
+                vec2 vel = vec2(baseVel.x * ca - baseVel.y * sa, baseVel.x * sa + baseVel.y * ca);
+
+                p.pos = spawnPos;
+                p.vel = normalize(vel) * randf(1.5f, 3.0f);
                 p.trail.clear();
                 p.trail.push_back(p.pos);
                 p.alive = true;
