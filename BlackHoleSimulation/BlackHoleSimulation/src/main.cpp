@@ -22,7 +22,9 @@ struct BlackHole {
     float strength;//lensing strength
 };
 
-BlackHole blackHole = { vec2(0.0f, 0.0f), 10.5f, 0.2f, 100.0f };
+//We set the r_s as 0
+//This is because we will use the mass to calculate the r_s
+BlackHole blackHole = { vec2(0.0f, 0.0f), 30.5f, 0.0f, 10.0f };
 
 struct Particle {
     vec2 pos;
@@ -134,7 +136,7 @@ void setupRayShader() {
 }
 
 //Setting up the circle mesh
-void setupCircle(GLFWwindow* window) {
+void setupCircle(const BlackHole& bh, GLFWwindow* window) {
     //Create an array to store circle vertex positions (x,y)
     //using a triangle fan
     //first vertex is the center, the rest is the circumference
@@ -147,6 +149,11 @@ void setupCircle(GLFWwindow* window) {
     //Centers of x & y
     circleVertices[0] = 0.0f;
     circleVertices[1] = 0.0f;
+
+    //Schwarzschild radius calculation
+    //r_s = 2 * G * M/c^2
+    //1e8f scales everything up so it is visible on screen
+    blackHole.r_s = 2.0f * 6.67430e-11f * blackHole.mass * 1e8f;
 
     //Calculating the positions of the circle circ.
     for (int i = 0; i <= NUM_SEGMENTS; i++) {
@@ -288,7 +295,9 @@ void drawRay(int vertexCount) {
 
 //Initialize GR state from current p.pos (screen coords) and p.vel (direction only).
 void initParticleGR(Particle& p, const BlackHole& bh, float aspect) {
-    float M = (bh.r_s > 0.0f) ? 0.5f * bh.r_s : bh.mass;
+
+    //Reduce scaling since this is just a sim
+    float M = bh.mass / 100;
 
     vec2 bhRenderPos = vec2(bh.position.x / aspect, bh.position.y);
 
@@ -332,7 +341,7 @@ void integrateParticleRK4_GR(const BlackHole& bh, Particle& p, float dlambda, fl
         if (!p.grInit) return;
     }
 
-    float M = (bh.r_s > 0.0f) ? 0.5f * bh.r_s : bh.mass;
+    float M = bh.mass / 100;
 
     auto deriv = [&](float r, float pr, float L)->vec3 {
         float invr = (r > 1e-8f) ? 1.0f / r : 0.0f;
@@ -403,7 +412,7 @@ int main() {
     }
 
     //Prep the circle shape and shaders before we start rendering
-    setupCircle(window);
+    setupCircle(blackHole, window);
     setupRayBuffers();
     setupRayShader();
 
