@@ -296,37 +296,62 @@ void drawRay(int vertexCount) {
 //Initialize GR state from current p.pos (screen coords) and p.vel (direction only).
 void initParticleGR(Particle& p, const BlackHole& bh, float aspect) {
 
-    //Reduce scaling since this is just a sim
+    //Reduce scaling to avoid overly strong gravitational effects
     float M = bh.mass / 100;
 
+    //Converts the bh pos from screen coords to render coords accounting for the aspect ratio
     vec2 bhRenderPos = vec2(bh.position.x / aspect, bh.position.y);
 
+    //Calculates the vector from the bh to the particles current pos in render coords
     vec2 rvec_render = p.pos - bhRenderPos;
+
+    //Transforms the render vector into physical coords by reapplying the aspect ratio to the x component
     float phys_x = rvec_render.x * aspect;
     float phys_y = rvec_render.y;
     vec2 rvec_phys = vec2(phys_x, phys_y);
+
+    //Computes the initial radial distance from the bh to the particle (euclidean distance)
     float r0 = length(rvec_phys);
+
+    //Check if the particle is too close to the bh
+    //If it is, kill it to simulate it crossing the event horizon
     if (r0 <= 1e-6f) { p.alive = false; return; }
+
+    //Calculate the initial angular coordinate of the particle relative to the bh
     float phi0 = atan2(phys_y, phys_x);
 
+    //Normalizes the particles velocity vector to get a unit direction
     vec2 dir_render = normalize(p.vel);
+
+    //Adjusts the direction vector to physical coordinates and renormalizes it
     vec2 dphys = vec2(dir_render.x * aspect, dir_render.y);
     float dphys_len = length(dphys);
     vec2 dir_phys = dphys / dphys_len;
 
+    //Computes the impact parameter (b)
+    //This determines the angular momentum (L) for the light ray
     float b = fabs(rvec_phys.x * dir_phys.y - rvec_phys.y * dir_phys.x);
     float L = b;
 
+    //Veff determines the radial motion stability
+    //Veff is the default if the ray is too close to avoid division issues
     float Veff = 0.0f;
     if (r0 > 1e-8f) Veff = (1.0f - 2.0f * M / r0) * (L * L) / (r0 * r0);
 
+    //Computes the square of the radial momentum magnitude and its positive root
+    //This infulences if the particle goes inwards or outwards
     float pr2 = 1.0f - Veff;
     if (pr2 < 0.0f) pr2 = 0.0f;
     float prMag = sqrt(pr2);
 
+    //Determines the sign of the radial momentum based on the direction of motion
+    //This reflects the particles radial velocity direction consistent with its initial trajectory
     float radialDot = dot(rvec_phys, dir_phys);
     float pr = (radialDot < 0.0f) ? -prMag : prMag;
 
+    //Stores the computed GR state in the particle object
+    //These values are used to calculate the particles trajectory
+    //This will enable bending or orbiting based on GR effects
     p.r = r0;
     p.phi = phi0;
     p.pr = pr;
