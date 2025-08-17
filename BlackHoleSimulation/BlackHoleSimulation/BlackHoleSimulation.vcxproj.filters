@@ -33,6 +33,9 @@
     <ClCompile Include="src\glad.c">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\blackhole_3d.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\blackHole\shader.frag">
