@@ -361,13 +361,18 @@ void initParticleGR(Particle& p, const BlackHole& bh, float aspect) {
 
 //One RK4 step for null geodesic in (r, pr, phi)
 void integrateParticleRK4_GR(const BlackHole& bh, Particle& p, float dlambda, float aspect) {
+
+    //Ensures that the particles GR state is initialized
     if (!p.grInit) {
         initParticleGR(p, bh, aspect);
         if (!p.grInit) return;
     }
 
+    //Defines the gravitational parameter M
     float M = bh.mass / 100;
 
+    //Lambda function to compute the derivatives of r, pr, phi
+    //These derivatives decide the particles motion in curved spacetime
     auto deriv = [&](float r, float pr, float L)->vec3 {
         float invr = (r > 1e-8f) ? 1.0f / r : 0.0f;
         float invr2 = invr * invr;
@@ -379,24 +384,31 @@ void integrateParticleRK4_GR(const BlackHole& bh, Particle& p, float dlambda, fl
         return vec3(dr, dpr, dphi);
         };
 
+    //Stores the initial values of the particles state variables
     float r0 = p.r, pr0 = p.pr, phi0 = p.phi, L = p.L;
 
+    //Computes Rk4 increments
+    //This estimates the next stage
     vec3 k1 = deriv(r0, pr0, L);
     vec3 k2 = deriv(r0 + 0.5f * dlambda * k1.x, pr0 + 0.5f * dlambda * k1.y, L);
     vec3 k3 = deriv(r0 + 0.5f * dlambda * k2.x, pr0 + 0.5f * dlambda * k2.y, L);
     vec3 k4 = deriv(r0 + dlambda * k3.x, pr0 + dlambda * k3.y, L);
 
+    //Updates the particles state variables using the rk4 avg
     p.r = r0 + (dlambda / 6.0f) * (k1.x + 2.0f * k2.x + 2.0f * k3.x + k4.x);
     p.pr = pr0 + (dlambda / 6.0f) * (k1.y + 2.0f * k2.y + 2.0f * k3.y + k4.y);
     p.phi = phi0 + (dlambda / 6.0f) * (k1.z + 2.0f * k2.z + 2.0f * k3.z + k4.z);
 
+    //Checks if the particle has crossed the event horizon and kills it if it has
     if (p.r <= bh.r_s) { p.alive = false; return; }
 
+    //Updates the particles screen pos from its polar coords
     float x = p.r * cos(p.phi);
     float y = p.r * sin(p.phi);
     p.pos.x = x / aspect + bh.position.x / aspect;
     p.pos.y = y + bh.position.y;
 
+    //Updates the particles velocity vector in screen coords
     float dr = p.pr;
     float dphi = (p.L / (p.r * p.r));
     float vx = dr * cos(p.phi) - p.r * dphi * sin(p.phi);
