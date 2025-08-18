@@ -25,7 +25,7 @@ struct BlackHole {
 
 //We set the r_s as 0
 //This is because we will use the mass to calculate the r_s
-BlackHole blackHole = { vec3(0.0f, 0.0f, 0.0f), 20.5f, 0.0f, 10.0f };
+BlackHole blackHole = { vec3(0.0f, 0.0f, 0.0f), 200.5f, 0.0f, 10.0f };
 
 struct Particle {
     vec3 pos;
@@ -65,6 +65,24 @@ int rayMaxPoints = 2000;//Max amount of vertices the ray can have
 //Uniform locations cached
 int uColorLoc = -1;
 int uOffsetLoc = -1;
+
+//Orbit camera globals
+float camRadius = 10.0f;//Distance from target
+float camYaw = glm::radians(45.0f);
+float camPitch = glm::radians(30.0f);
+glm::vec3 camTarget = glm::vec3(0.0f, 0.0f, 0.0f);
+
+//Helper function for camera orbit
+glm::mat4 getOrbitView() {
+    //Convert spherical coords to Cartesian
+    float x = camRadius * cos(camPitch) * cos(camYaw);
+    float y = camRadius * sin(camPitch);
+    float z = camRadius * cos(camPitch) * sin(camYaw);
+
+    glm::vec3 camPos = camTarget + glm::vec3(x, y, z);
+    return glm::lookAt(camPos, camTarget, glm::vec3(0.0f, 1.0f, 0.0f));
+}
+
 
 //Loading shader source code from a text file
 std::string loadShaderSource(const char* filepath) {
@@ -509,12 +527,84 @@ int main() {
     while (!glfwWindowShouldClose(window)) {
 
         //Per frame increments
-        timeElapsed += 0.01f;
+        //timeElapsed += 0.01f;
 
         //get the current framebuffer size (for window resizing)
         int width, height;
         glfwGetFramebufferSize(window, &width, &height);
         float aspect = (float)width / (float)height;
+
+        //Improved time handling
+        static double lastFrameTime = 0.0;
+        double currentFrameTime = glfwGetTime();
+        float deltaTime = (float)(currentFrameTime - lastFrameTime);
+        if (lastFrameTime == 0.0)deltaTime = 0.016f;//First frame fallback
+        lastFrameTime = currentFrameTime;
+
+        //Poll events first instead so GLFW gets updates from the keyboard/mouse
+        glfwPollEvents();
+
+        //Keyboard controls
+        //WASD to move the camera target in the cameras forward/right plane
+        //Pan speed
+        float panSpeed = 2.5f * (deltaTime);
+
+        //computing camera basis from current yaw/pitch
+        glm::vec3 camDir;
+        camDir.x = cos(camPitch) * cos(camYaw);
+        camDir.y = sin(camPitch);
+        camDir.z = cos(camPitch) * sin(camYaw);
+        camDir = normalize(camDir);
+
+        //right vector (world-up is y)
+        glm::vec3 right = normalize(cross(camDir, vec3(0.0f, 1.0f, 0.0f)));
+        glm::vec3 forward = normalize(cross(vec3(0.0f, 1.0f, 0.0f), right));//forward parallel to XZ plane
+
+        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) camTarget += forward * panSpeed;
+        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) camTarget -= forward * panSpeed;
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) camTarget -= right * panSpeed;
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) camTarget += right * panSpeed;
+        if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) camTarget.y -= panSpeed;//down
+        if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) camTarget.y += panSpeed;//up
+
+        //Orbit controls (keyboard fallback)
+        //Left/Right rotate yaw, Up/Down rotate pitch, Z/X zoom
+        float rotSpeed = 1.2f * deltaTime; //radians/sec approx
+        if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)  camYaw -= rotSpeed;
+        if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) camYaw += rotSpeed;
+        if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)    camPitch += rotSpeed;
+        if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)  camPitch -= rotSpeed;
+        if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS) camRadius -= 5.0f * deltaTime;
+        if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS) camRadius += 5.0f * deltaTime;
+
+        //clamp pitch and radius
+        camPitch = clamp(camPitch, radians(-89.0f), radians(89.0f));
+        if (camRadius < 1.0f) camRadius = 1.0f;
+
+        //Mouse drag to rotate
+        static double lastMouseX = 0.0, lastMouseY = 0.0;
+        static bool firstMouseFrame = true;
+        double mouseX, mouseY;
+        glfwGetCursorPos(window, &mouseX, &mouseY);
+
+        if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS) {
+            if (firstMouseFrame) {
+                lastMouseX = mouseX;
+                lastMouseY = mouseY;
+                firstMouseFrame = false;
+            }
+            double dx = mouseX - lastMouseX;
+            double dy = mouseY - lastMouseY;
+            float sens = 0.005f;//mouse sensitivity (tweak)
+            camYaw += (float)(dx * sens);
+            camPitch -= (float)(dy * sens);//inverted Y look typical for orbit
+            lastMouseX = mouseX;
+            lastMouseY = mouseY;
+        }
+        else {
+            //reset firstMouseFrame when not dragging so we don't get a jump next time
+            firstMouseFrame = true;
+        }
 
         //Set the background clear colour
         glClearColor(0.43137254901960786f, 0.3176470588235294f, 0.5058823529411764f, 1.f);
@@ -527,7 +617,7 @@ int main() {
 
         //Setting up simple perspective projection
         mat4 projection = perspective(radians(45.0f), aspect, 0.1f, 100.0f);
-        mat4 view = lookAt(vec3(0.0f, 0.0f, 5.0f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f));
+        mat4 view = getOrbitView();
         mat4 model = mat4(1.0f);
         mat4 mvp = projection * view * model;
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uMVP"), 1, GL_FALSE, &mvp[0][0]);
@@ -536,7 +626,7 @@ int main() {
         glUniform3f(uOffsetLoc, blackHole.position.x, blackHole.position.y, blackHole.position.z);
         drawCircle(blackHole, aspect);
         glfwSwapBuffers(window);
-        glfwPollEvents();
+        //glfwPollEvents();
 
         //Draw a ray
         if (uOffsetLoc != -1) glUniform2f(uOffsetLoc, 0.0f, 0.0f);
