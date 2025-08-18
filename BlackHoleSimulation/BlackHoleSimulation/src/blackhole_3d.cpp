@@ -72,6 +72,12 @@ float camYaw = glm::radians(45.0f);
 float camPitch = glm::radians(30.0f);
 glm::vec3 camTarget = glm::vec3(0.0f, 0.0f, 0.0f);
 
+//Grid/Axis globals
+unsigned int gridVAO = 0, gridVBO = 0;
+int gridVertexCount = 0;
+
+unsigned int axesVAO = 0, axesVBO = 0;
+
 //Helper function for camera orbit
 glm::mat4 getOrbitView() {
     //Convert spherical coords to Cartesian
@@ -153,6 +159,96 @@ void setupRayShader() {
 
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
+}
+
+void setupGrid(int halfExtent = 25, float spacing = 1.0f, float y = -1.0f) {
+    std::vector<float> verts;
+    //Lines parallel to X (varying z)
+    for (int i = -halfExtent; i <= halfExtent; ++i) {
+        float z = i * spacing;
+        verts.push_back(-halfExtent * spacing); verts.push_back(y); verts.push_back(z);
+        verts.push_back(halfExtent * spacing); verts.push_back(y); verts.push_back(z);
+    }
+    //Lines parallel to Z (varying x)
+    for (int i = -halfExtent; i <= halfExtent; ++i) {
+        float x = i * spacing;
+        verts.push_back(x); verts.push_back(y); verts.push_back(-halfExtent * spacing);
+        verts.push_back(x); verts.push_back(y); verts.push_back(halfExtent * spacing);
+    }
+
+    //Upload to GPU
+    glGenVertexArrays(1, &gridVAO);
+    glBindVertexArray(gridVAO);
+
+    glGenBuffers(1, &gridVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, gridVBO);
+    glBufferData(GL_ARRAY_BUFFER, verts.size() * sizeof(float), verts.data(), GL_STATIC_DRAW);
+
+    //layout(location = 0) -> position
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    glBindVertexArray(0);
+    gridVertexCount = (int)verts.size() / 3;
+}
+
+void setupAxes(float halfExtent = 25.0f, float y = -1.0f) {
+    glGenVertexArrays(1, &axesVAO);
+    glBindVertexArray(axesVAO);
+
+    glGenBuffers(1, &axesVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, axesVBO);
+    //reserve a small buffer we will update per draw
+    glBufferData(GL_ARRAY_BUFFER, 4 * 3 * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    glBindVertexArray(0);
+}
+
+void drawGrid(const glm::mat4& mvp) {
+    glUseProgram(shaderProgram);
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uMVP"), 1, GL_FALSE, &mvp[0][0]);
+
+    //grid in faint color
+    if (uOffsetLoc != -1) glUniform3f(uOffsetLoc, 0.0f, 0.0f, 0.0f);
+    if (uColorLoc != -1) glUniform4f(uColorLoc, 0.22f, 0.22f, 0.30f, 1.0f);
+
+    glBindVertexArray(gridVAO);
+    glLineWidth(1.0f);
+    glDrawArrays(GL_LINES, 0, gridVertexCount);
+    glBindVertexArray(0);
+}
+
+void drawAxes(float halfExtent = 25.0f, float y = -1.0f) {
+    glUseProgram(shaderProgram);
+    if (uOffsetLoc != -1) glUniform3f(uOffsetLoc, 0.0f, 0.0f, 0.0f);
+
+    glBindVertexArray(axesVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, axesVBO);
+
+    //X axis (red)
+    float xVerts[6] = {
+        -halfExtent, y, 0.0f,
+         halfExtent, y, 0.0f
+    };
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(xVerts), xVerts);
+    if (uColorLoc != -1) glUniform4f(uColorLoc, 1.0f, 0.2f, 0.2f, 1.0f);
+    glLineWidth(2.0f);
+    glDrawArrays(GL_LINES, 0, 2);
+
+    //Z axis (green)
+    float zVerts[6] = {
+        0.0f, y, -halfExtent,
+        0.0f, y,  halfExtent
+    };
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(zVerts), zVerts);
+    if (uColorLoc != -1) glUniform4f(uColorLoc, 0.2f, 1.0f, 0.2f, 1.0f);
+    glDrawArrays(GL_LINES, 0, 2);
+
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 //Setting up the circle mesh
@@ -508,6 +604,9 @@ int main() {
     setupRayBuffers();
     setupRayShader();
 
+    setupGrid(40, 1.0f, -1.0f);
+    setupAxes(40.0f, -1.0f);
+
     //Initialize particles once
     //particles.resize(numRays);
     //for (int i = 0; i < numRays; ++i) {
@@ -560,10 +659,10 @@ int main() {
         glm::vec3 right = normalize(cross(camDir, vec3(0.0f, 1.0f, 0.0f)));
         glm::vec3 forward = normalize(cross(vec3(0.0f, 1.0f, 0.0f), right));//forward parallel to XZ plane
 
-        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) camTarget += forward * panSpeed;
-        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) camTarget -= forward * panSpeed;
-        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) camTarget -= right * panSpeed;
-        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) camTarget += right * panSpeed;
+        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) camTarget -= forward * panSpeed;
+        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) camTarget += forward * panSpeed;
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) camTarget += right * panSpeed;
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) camTarget -= right * panSpeed;
         if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) camTarget.y -= panSpeed;//down
         if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) camTarget.y += panSpeed;//up
 
@@ -622,14 +721,18 @@ int main() {
         mat4 mvp = projection * view * model;
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uMVP"), 1, GL_FALSE, &mvp[0][0]);
 
-        //Draw the circle representing the black hole
-        glUniform3f(uOffsetLoc, blackHole.position.x, blackHole.position.y, blackHole.position.z);
+        //Draw world grid & axes (no offset)
+        drawGrid(mvp);
+        drawAxes(40.0f, -1.0f);
+
+        //Draw the black hole at its world offset
+        if (uOffsetLoc != -1) glUniform3f(uOffsetLoc, blackHole.position.x, blackHole.position.y, blackHole.position.z);
         drawCircle(blackHole, aspect);
         glfwSwapBuffers(window);
         //glfwPollEvents();
 
         //Draw a ray
-        if (uOffsetLoc != -1) glUniform2f(uOffsetLoc, 0.0f, 0.0f);
+        //if (uOffsetLoc != -1) glUniform2f(uOffsetLoc, 0.0f, 0.0f);
 
         //Base vertical offest for ray changes with elapsed time
         float baseY = 0.5f + 0.5f * sin(timeElapsed);
