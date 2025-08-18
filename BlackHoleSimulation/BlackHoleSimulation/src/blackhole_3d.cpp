@@ -77,6 +77,10 @@ unsigned int gridVAO = 0, gridVBO = 0;
 int gridVertexCount = 0;
 
 unsigned int axesVAO = 0, axesVBO = 0;
+//Grid shader
+unsigned int gridShaderProgram = 0;
+int grid_uMVPLoc = -1;
+int grid_uColorLoc = -1;
 
 //Helper function for camera orbit
 glm::mat4 getOrbitView() {
@@ -161,6 +165,42 @@ void setupRayShader() {
     glDeleteShader(fragmentShader);
 }
 
+void setupGridShader() {
+    std::string vertexCode = loadShaderSource("shaders/grid/shader.vert");
+    std::string fragmentCode = loadShaderSource("shaders/grid/shader.frag");
+
+    if (vertexCode.empty() || fragmentCode.empty()) {
+        std::cerr << "Grid shader source empty, aborting setup." << std::endl;
+        return;
+    }
+
+    const char* vertexSource = vertexCode.c_str();
+    const char* fragmentSource = fragmentCode.c_str();
+
+    unsigned int vert = compileShader(vertexSource, GL_VERTEX_SHADER);
+    unsigned int frag = compileShader(fragmentSource, GL_FRAGMENT_SHADER);
+
+    gridShaderProgram = glCreateProgram();
+    glAttachShader(gridShaderProgram, vert);
+    glAttachShader(gridShaderProgram, frag);
+    glLinkProgram(gridShaderProgram);
+
+    int success;
+    char infoLog[512];
+    glGetProgramiv(gridShaderProgram, GL_LINK_STATUS, &success);
+    if (!success) {
+        glGetProgramInfoLog(gridShaderProgram, 512, nullptr, infoLog);
+        std::cerr << "Grid shader program linking failed:\n" << infoLog << std::endl;
+    }
+
+    glDeleteShader(vert);
+    glDeleteShader(frag);
+
+    //cache uniform locations
+    grid_uMVPLoc = glGetUniformLocation(gridShaderProgram, "uMVP");
+    grid_uColorLoc = glGetUniformLocation(gridShaderProgram, "uColor");
+}
+
 void setupGrid(int halfExtent = 25, float spacing = 1.0f, float y = -1.0f) {
     std::vector<float> verts;
     //Lines parallel to X (varying z)
@@ -208,12 +248,13 @@ void setupAxes(float halfExtent = 25.0f, float y = -1.0f) {
 }
 
 void drawGrid(const glm::mat4& mvp) {
-    glUseProgram(shaderProgram);
+    if (gridShaderProgram == 0) return;
+    glUseProgram(gridShaderProgram);
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uMVP"), 1, GL_FALSE, &mvp[0][0]);
 
     //grid in faint color
-    if (uOffsetLoc != -1) glUniform3f(uOffsetLoc, 0.0f, 0.0f, 0.0f);
-    if (uColorLoc != -1) glUniform4f(uColorLoc, 0.22f, 0.22f, 0.30f, 1.0f);
+    if (grid_uMVPLoc != -1) glUniformMatrix4fv(grid_uMVPLoc, 1, GL_FALSE, &mvp[0][0]);
+    if (grid_uColorLoc != -1) glUniform4f(grid_uColorLoc, 0.643f, 0.643f, 0.643f, 0.5f);
 
     glBindVertexArray(gridVAO);
     glLineWidth(1.0f);
@@ -222,29 +263,29 @@ void drawGrid(const glm::mat4& mvp) {
 }
 
 void drawAxes(float halfExtent = 25.0f, float y = -1.0f) {
-    glUseProgram(shaderProgram);
-    if (uOffsetLoc != -1) glUniform3f(uOffsetLoc, 0.0f, 0.0f, 0.0f);
+    if (gridShaderProgram == 0) return;
+    glUseProgram(gridShaderProgram);
 
     glBindVertexArray(axesVAO);
     glBindBuffer(GL_ARRAY_BUFFER, axesVBO);
 
-    //X axis (red)
+    //X axis
     float xVerts[6] = {
         -halfExtent, y, 0.0f,
          halfExtent, y, 0.0f
     };
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(xVerts), xVerts);
-    if (uColorLoc != -1) glUniform4f(uColorLoc, 1.0f, 0.2f, 0.2f, 1.0f);
+    if (grid_uColorLoc != -1) glUniform4f(grid_uColorLoc, 0.643f, 0.643f, 0.643f, 0.5f);
     glLineWidth(2.0f);
     glDrawArrays(GL_LINES, 0, 2);
 
-    //Z axis (green)
+    //Z axis
     float zVerts[6] = {
         0.0f, y, -halfExtent,
         0.0f, y,  halfExtent
     };
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(zVerts), zVerts);
-    if (uColorLoc != -1) glUniform4f(uColorLoc, 0.2f, 1.0f, 0.2f, 1.0f);
+    if (grid_uColorLoc != -1) glUniform4f(grid_uColorLoc, 0.643f, 0.643f, 0.643f, 0.5f);
     glDrawArrays(GL_LINES, 0, 2);
 
     glBindVertexArray(0);
@@ -604,6 +645,7 @@ int main() {
     setupRayBuffers();
     setupRayShader();
 
+    setupGridShader();
     setupGrid(40, 1.0f, -1.0f);
     setupAxes(40.0f, -1.0f);
 

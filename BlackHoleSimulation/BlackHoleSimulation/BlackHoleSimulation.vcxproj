@@ -26,6 +26,8 @@
   <ItemGroup>
     <None Include="shaders\blackHole\shader.frag" />
     <None Include="shaders\blackHole\shader.vert" />
+    <None Include="shaders\grid\shader.frag" />
+    <None Include="shaders\grid\shader.vert" />
     <None Include="shaders\ray\shader.frag" />
     <None Include="shaders\ray\shader.vert" />
   </ItemGroup>

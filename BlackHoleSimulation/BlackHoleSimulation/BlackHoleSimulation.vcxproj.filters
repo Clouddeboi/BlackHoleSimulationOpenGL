@@ -25,6 +25,9 @@
     <Filter Include="shaders\ray">
       <UniqueIdentifier>{e4c65fe4-381f-44a6-a9ca-fc07bd3d473b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="shaders\grid">
+      <UniqueIdentifier>{1f1faa94-47bd-4bef-b42c-254e760087df}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -49,6 +52,12 @@
     </None>
     <None Include="shaders\ray\shader.frag">
       <Filter>shaders\ray</Filter>
+    </None>
+    <None Include="shaders\grid\shader.frag">
+      <Filter>shaders\grid</Filter>
+    </None>
+    <None Include="shaders\grid\shader.vert">
+      <Filter>shaders\grid</Filter>
     </None>
   </ItemGroup>
 </Project>
