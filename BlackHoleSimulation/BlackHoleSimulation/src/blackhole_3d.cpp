@@ -11,6 +11,9 @@
 #include <cmath>
 #include <vector>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 using namespace glm;
 
 //Variable for tracking the time passed
@@ -82,6 +85,12 @@ unsigned int gridShaderProgram = 0;
 int grid_uMVPLoc = -1;
 int grid_uColorLoc = -1;
 
+//Skybox
+unsigned int skyboxVAO = 0, skyboxVBO = 0;
+unsigned int skyboxProgram = 0;
+unsigned int skyboxTexture = 0;
+int skybox_uMVPLoc = -1;
+
 //Helper function for camera orbit
 glm::mat4 getOrbitView() {
     //Convert spherical coords to Cartesian
@@ -92,7 +101,6 @@ glm::mat4 getOrbitView() {
     glm::vec3 camPos = camTarget + glm::vec3(x, y, z);
     return glm::lookAt(camPos, camTarget, glm::vec3(0.0f, 1.0f, 0.0f));
 }
-
 
 //Loading shader source code from a text file
 std::string loadShaderSource(const char* filepath) {
@@ -474,6 +482,120 @@ void updateRayVBO(const std::vector<vec3>& path) {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
+unsigned int loadCubemap(const std::vector<std::string>& faces) {
+    unsigned int tex;
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, tex);
+
+    int width, height, nrChannels;
+    //For each of the 6 faces we call stbi_load and upload with glTextImage2d
+    for (unsigned int i = 0; i < faces.size(); ++i) {
+        unsigned char* data = stbi_load(faces[i].c_str(), &width, &height, &nrChannels, 0);
+        if (data) {
+            //Choose imput format based on the number of channels in the loaded image
+            GLenum format = (nrChannels == 3) ? GL_RGB : GL_RGBA;
+
+            //Mapping the faces vector to the cube faces in order
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
+                0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+            stbi_image_free(data);//Free image memory after upload
+        }
+        else {
+            //If the loading fails print the failed file
+            std::cerr << "Cubemap tex failed to load: " << faces[i] << std::endl;
+            stbi_image_free(data);
+        }
+    }
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    
+    //CLAMP_TO_EDGE avoids seams at the cube edges
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+    return tex;
+}
+
+void setupSkybox(const std::vector<std::string>& faces) {
+    //cube vertex data: each triangle of the cube is defined by these 36 positions
+    //These are positions only (no normals/uv) — in the skybox vertex shader
+    //we use the position as a direction vector into the cubemap sampler.
+    float skyboxVertices[] = {
+        //positions
+        -1.0f,  1.0f, -1.0f,
+        -1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f,
+         1.0f,  1.0f, -1.0f,
+        -1.0f,  1.0f, -1.0f,
+
+        -1.0f, -1.0f,  1.0f,
+        -1.0f, -1.0f, -1.0f,
+        -1.0f,  1.0f, -1.0f,
+        -1.0f,  1.0f, -1.0f,
+        -1.0f,  1.0f,  1.0f,
+        -1.0f, -1.0f,  1.0f,
+
+         1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f,
+
+        -1.0f, -1.0f,  1.0f,
+        -1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,
+         1.0f, -1.0f,  1.0f,
+        -1.0f, -1.0f,  1.0f,
+
+        -1.0f,  1.0f, -1.0f,
+         1.0f,  1.0f, -1.0f,
+         1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,
+        -1.0f,  1.0f,  1.0f,
+        -1.0f,  1.0f, -1.0f,
+
+        -1.0f, -1.0f, -1.0f,
+        -1.0f, -1.0f,  1.0f,
+         1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f,
+        -1.0f, -1.0f,  1.0f,
+         1.0f, -1.0f,  1.0f
+    };
+
+    glGenVertexArrays(1, &skyboxVAO);
+    glGenBuffers(1, &skyboxVBO);
+    glBindVertexArray(skyboxVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, skyboxVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), &skyboxVertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    glBindVertexArray(0);
+
+    //load cubemap
+    skyboxTexture = loadCubemap(faces);
+
+    //compile skybox shader
+    std::string vsrc = loadShaderSource("shaders/skybox/skybox.vert");
+    std::string fsrc = loadShaderSource("shaders/skybox/skybox.frag");
+    unsigned int v = compileShader(vsrc.c_str(), GL_VERTEX_SHADER);
+    unsigned int f = compileShader(fsrc.c_str(), GL_FRAGMENT_SHADER);
+    skyboxProgram = glCreateProgram();
+    glAttachShader(skyboxProgram, v);
+    glAttachShader(skyboxProgram, f);
+    glLinkProgram(skyboxProgram);
+    glDeleteShader(v); glDeleteShader(f);
+
+    //uniforms cache
+    skybox_uMVPLoc = glGetUniformLocation(skyboxProgram, "uProjection");//reuse names below
+    
+    glUseProgram(skyboxProgram);
+    glUniform1i(glGetUniformLocation(skyboxProgram, "skybox"), 0);//texture unit 0
+}
+
 //Draw the ray
 void drawRay(int vertexCount) {
     glUseProgram(rayShaderProgram);
@@ -649,6 +771,17 @@ int main() {
     setupGrid(40, 1.0f, -1.0f);
     setupAxes(40.0f, -1.0f);
 
+    std::vector<std::string> faces = {
+    "textures/skybox/right.png",
+    "textures/skybox/left.png",
+    "textures/skybox/top.png",
+    "textures/skybox/bottom.png",
+    "textures/skybox/front.png",
+    "textures/skybox/back.png"
+    };
+    setupSkybox(faces);
+
+
     //Initialize particles once
     //particles.resize(numRays);
     //for (int i = 0; i < numRays; ++i) {
@@ -766,6 +899,32 @@ int main() {
         //Draw world grid & axes (no offset)
         drawGrid(mvp);
         drawAxes(40.0f, -1.0f);
+
+        //Draw skybox
+        //Use projection and view without translation:
+        glDepthFunc(GL_LEQUAL);//allow skybox to be drawn at depth 1.0
+        glDepthMask(GL_FALSE);
+
+        glUseProgram(skyboxProgram);
+
+        //projection: same projection used for rest of scene
+        glUniformMatrix4fv(glGetUniformLocation(skyboxProgram, "uProjection"),
+            1, GL_FALSE, &projection[0][0]);
+
+        //remove translation from view matrix so skybox stays centered on camera
+        //This makes it appear infinite
+        glm::mat4 viewNoTranslation = glm::mat4(glm::mat3(view));
+        glUniformMatrix4fv(glGetUniformLocation(skyboxProgram, "uView"),
+            1, GL_FALSE, &viewNoTranslation[0][0]);
+
+        glBindVertexArray(skyboxVAO);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, skyboxTexture);
+        glDrawArrays(GL_TRIANGLES, 0, 36);
+        glBindVertexArray(0);
+
+        glDepthMask(GL_TRUE);
+        glDepthFunc(GL_LESS); 
 
         //Draw the black hole at its world offset
         if (uOffsetLoc != -1) glUniform3f(uOffsetLoc, blackHole.position.x, blackHole.position.y, blackHole.position.z);

@@ -28,6 +28,12 @@
     <Filter Include="shaders\grid">
       <UniqueIdentifier>{1f1faa94-47bd-4bef-b42c-254e760087df}</UniqueIdentifier>
     </Filter>
+    <Filter Include="shaders\skybox">
+      <UniqueIdentifier>{a08b8bf2-d4e6-4e3b-8561-3d781fc0d23e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="textures\skybox">
+      <UniqueIdentifier>{fa61a872-3417-452d-b595-3511747a09b8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -59,5 +65,36 @@
     <None Include="shaders\grid\shader.vert">
       <Filter>shaders\grid</Filter>
     </None>
+    <None Include="shaders\skybox\skybox.vert">
+      <Filter>shaders\skybox</Filter>
+    </None>
+    <None Include="shaders\skybox\skybox.frag">
+      <Filter>shaders\skybox</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="textures\skybox\left.png">
+      <Filter>textures\skybox</Filter>
+    </Image>
+    <Image Include="textures\skybox\back.png">
+      <Filter>textures\skybox</Filter>
+    </Image>
+    <Image Include="textures\skybox\top.png">
+      <Filter>textures\skybox</Filter>
+    </Image>
+    <Image Include="textures\skybox\right.png">
+      <Filter>textures\skybox</Filter>
+    </Image>
+    <Image Include="textures\skybox\front.png">
+      <Filter>textures\skybox</Filter>
+    </Image>
+    <Image Include="textures\skybox\bottom.png">
+      <Filter>textures\skybox</Filter>
+    </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\stb_image.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
