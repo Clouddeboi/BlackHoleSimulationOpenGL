@@ -39,10 +39,10 @@
     <ClCompile Include="src\main.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\glad.c">
+    <ClCompile Include="src\blackhole_3d.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\blackhole_3d.cpp">
+    <ClCompile Include="src\glad.c">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
@@ -94,6 +94,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\stb_image.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\glad\gl.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\KHR\khrplatform.h">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>

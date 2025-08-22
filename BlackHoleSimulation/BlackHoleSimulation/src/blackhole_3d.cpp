@@ -1,4 +1,4 @@
-#include <glad/glad.h>
+#include <glad/gl.h>
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
@@ -605,130 +605,6 @@ void drawRay(int vertexCount) {
     glBindVertexArray(0);
 }
 
-//Initialize GR state from current p.pos (screen coords) and p.vel (direction only).
-//void initParticleGR(Particle& p, const BlackHole& bh, float aspect) {
-//
-//    //Reduce scaling to avoid overly strong gravitational effects
-//    float M = bh.mass / 100;
-//
-//    //Converts the bh pos from screen coords to render coords accounting for the aspect ratio
-//    vec3 bhRenderPos = vec3(bh.position.x / aspect, bh.position.y);
-//
-//    //Calculates the vector from the bh to the particles current pos in render coords
-//    vec3 rvec_render = p.pos - bhRenderPos;
-//
-//    //Transforms the render vector into physical coords by reapplying the aspect ratio to the x component
-//    float phys_x = rvec_render.x * aspect;
-//    float phys_y = rvec_render.y;
-//    vec3 rvec_phys = vec3(phys_x, phys_y);
-//
-//    //Computes the initial radial distance from the bh to the particle (euclidean distance)
-//    float r0 = length(rvec_phys);
-//
-//    //Check if the particle is too close to the bh
-//    //If it is, kill it to simulate it crossing the event horizon
-//    if (r0 <= 1e-6f) { p.alive = false; return; }
-//
-//    //Calculate the initial angular coordinate of the particle relative to the bh
-//    float phi0 = atan2(phys_y, phys_x);
-//
-//    //Normalizes the particles velocity vector to get a unit direction
-//    vec3 dir_render = normalize(p.vel);
-//
-//    //Adjusts the direction vector to physical coordinates and renormalizes it
-//    vec3 dphys = vec3(dir_render.x * aspect, dir_render.y);
-//    float dphys_len = length(dphys);
-//    vec3 dir_phys = dphys / dphys_len;
-//
-//    //Computes the impact parameter (b)
-//    //This determines the angular momentum (L) for the light ray
-//    float b = fabs(rvec_phys.x * dir_phys.y - rvec_phys.y * dir_phys.x);
-//    float L = b;
-//
-//    //Veff determines the radial motion stability
-//    //Veff is the default if the ray is too close to avoid division issues
-//    float Veff = 0.0f;
-//    if (r0 > 1e-8f) Veff = (1.0f - 2.0f * M / r0) * (L * L) / (r0 * r0);
-//
-//    //Computes the square of the radial momentum magnitude and its positive root
-//    //This infulences if the particle goes inwards or outwards
-//    float pr2 = 1.0f - Veff;
-//    if (pr2 < 0.0f) pr2 = 0.0f;
-//    float prMag = sqrt(pr2);
-//
-//    //Determines the sign of the radial momentum based on the direction of motion
-//    //This reflects the particles radial velocity direction consistent with its initial trajectory
-//    float radialDot = dot(rvec_phys, dir_phys);
-//    float pr = (radialDot < 0.0f) ? -prMag : prMag;
-//
-//    //Stores the computed GR state in the particle object
-//    //These values are used to calculate the particles trajectory
-//    //This will enable bending or orbiting based on GR effects
-//    p.r = r0;
-//    p.phi = phi0;
-//    p.pr = pr;
-//    p.L = L;
-//    p.grInit = true;
-//}
-//
-////One RK4 step for null geodesic in (r, pr, phi)
-//void integrateParticleRK4_GR(const BlackHole& bh, Particle& p, float dlambda, float aspect) {
-//
-//    //Ensures that the particles GR state is initialized
-//    if (!p.grInit) {
-//        initParticleGR(p, bh, aspect);
-//        if (!p.grInit) return;
-//    }
-//
-//    //Defines the gravitational parameter M
-//    float M = bh.mass / 100;
-//
-//    //Lambda function to compute the derivatives of r, pr, phi
-//    //These derivatives decide the particles motion in curved spacetime
-//    auto deriv = [&](float r, float pr, float L)->vec3 {
-//        float invr = (r > 1e-8f) ? 1.0f / r : 0.0f;
-//        float invr2 = invr * invr;
-//        float invr3 = invr2 * invr;
-//        float invr4 = invr3 * invr;
-//        float dr = pr;
-//        float dpr = L * L * (invr3 - 3.0f * M * invr4);
-//        float dphi = L * invr2;
-//        return vec3(dr, dpr, dphi);
-//        };
-//
-//    //Stores the initial values of the particles state variables
-//    float r0 = p.r, pr0 = p.pr, phi0 = p.phi, L = p.L;
-//
-//    //Computes Rk4 increments
-//    //This estimates the next stage
-//    vec3 k1 = deriv(r0, pr0, L);
-//    vec3 k2 = deriv(r0 + 0.5f * dlambda * k1.x, pr0 + 0.5f * dlambda * k1.y, L);
-//    vec3 k3 = deriv(r0 + 0.5f * dlambda * k2.x, pr0 + 0.5f * dlambda * k2.y, L);
-//    vec3 k4 = deriv(r0 + dlambda * k3.x, pr0 + dlambda * k3.y, L);
-//
-//    //Updates the particles state variables using the rk4 avg
-//    p.r = r0 + (dlambda / 6.0f) * (k1.x + 2.0f * k2.x + 2.0f * k3.x + k4.x);
-//    p.pr = pr0 + (dlambda / 6.0f) * (k1.y + 2.0f * k2.y + 2.0f * k3.y + k4.y);
-//    p.phi = phi0 + (dlambda / 6.0f) * (k1.z + 2.0f * k2.z + 2.0f * k3.z + k4.z);
-//
-//    //Checks if the particle has crossed the event horizon and kills it if it has
-//    if (p.r <= bh.r_s) { p.alive = false; return; }
-//
-//    //Updates the particles screen pos from its polar coords
-//    float x = p.r * cos(p.phi);
-//    float y = p.r * sin(p.phi);
-//    p.pos.x = x / aspect + bh.position.x / aspect;
-//    p.pos.y = y + bh.position.y;
-//
-//    //Updates the particles velocity vector in screen coords
-//    float dr = p.pr;
-//    float dphi = (p.L / (p.r * p.r));
-//    float vx = dr * cos(p.phi) - p.r * dphi * sin(p.phi);
-//    float vy = dr * sin(p.phi) + p.r * dphi * cos(p.phi);
-//    float vlen = sqrt(vx * vx + vy * vy);
-//    p.vel = (vlen > 1e-9f) ? vec3(vx / vlen, vy / vlen) : vec3(1.0f, 0.0f);
-//}
-
 int main() {
     //Initialize GLFW
     if (!glfwInit()) {
@@ -738,7 +614,7 @@ int main() {
 
     //Telling GLFW which version of OpenGl we will use
     //We will use 3.3
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 
     //Creating a window titled "Black Hole Simulation"
@@ -755,7 +631,7 @@ int main() {
 
     //Loading all OpenGl funtion pointers (using GLAD)
     //Must happen after making the current context
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+    if (!gladLoadGL(glfwGetProcAddress)) {
         std::cerr << "Failed to initialize GLAD" << std::endl;
         return -1;
     }
@@ -780,22 +656,6 @@ int main() {
     "textures/skybox/back.png"
     };
     setupSkybox(faces);
-
-
-    //Initialize particles once
-    //particles.resize(numRays);
-    //for (int i = 0; i < numRays; ++i) {
-    //    float yStart = 0.5f - 0.1f + i * 0.08f;
-    //    vec3 startPos = vec3(-1.0f / 1.0f, yStart);
-    //    vec3 startDir = normalize(vec3(1.0f, 0.0f));
-    //    float speed = 0.01f;
-    //    particles[i].pos = startPos;
-    //    particles[i].vel = startDir * speed;
-    //    particles[i].trail.clear();
-    //    particles[i].trail.reserve(maxTrailLen);
-    //    particles[i].trail.push_back(particles[i].pos);
-    //    particles[i].alive = true;
-    //}
 
     //Main loop that keeps running until we close the window
     while (!glfwWindowShouldClose(window)) {
@@ -932,88 +792,8 @@ int main() {
         glfwSwapBuffers(window);
         //glfwPollEvents();
 
-        //Draw a ray
-        //if (uOffsetLoc != -1) glUniform2f(uOffsetLoc, 0.0f, 0.0f);
-
         //Base vertical offest for ray changes with elapsed time
         float baseY = 0.5f + 0.5f * sin(timeElapsed);
-
-        //Integration param
-        float dt = 0.004f;
-
-        //for (int i = 0; i < numRays; ++i) {
-        //    Particle& p = particles[i];
-
-        //    //Random float helper
-        //    auto randf = [](float min, float max) {
-        //        return min + (max - min) * (rand() / (float)RAND_MAX);
-        //        };
-
-        //    vec3 bhRenderPos = vec3(blackHole.position.x / aspect, blackHole.position.y);
-
-        //    if (!p.alive || length(p.pos - bhRenderPos) <= blackHole.r_s ||
-        //        fabs(p.pos.x) > 5.0f || fabs(p.pos.y) > 5.0f)
-        //    {
-        //        int edge = rand() % 4;//Choose one of four edges: 0=left,1=right,2=top,3=bottom
-        //        vec3 spawnPos;
-        //        vec3 baseVel;
-
-        //        switch (edge) {
-        //        case 0: spawnPos = vec3(-5.0f / aspect, randf(-5.0f, 5.0f)); baseVel = vec3(1.0f, 0.0f); break;
-        //        case 1: spawnPos = vec3(5.0f / aspect, randf(-5.0f, 5.0f)); baseVel = vec3(-1.0f, 0.0f); break;
-        //        case 2: spawnPos = vec3(randf(-5.0f / aspect, 5.0f / aspect), 5.0f); baseVel = vec3(0.0f, -1.0f); break;
-        //        case 3: spawnPos = vec3(randf(-5.0f / aspect, 5.0f / aspect), -5.0f); baseVel = vec3(0.0f, 1.0f); break;
-        //        }
-
-        //        //Add small random angle offset for velocity
-        //        float angleOffset = randf(-0.3f, 0.3f);
-        //        float ca = cos(angleOffset), sa = sin(angleOffset);
-        //        vec3 vel = vec3(baseVel.x * ca - baseVel.y * sa, baseVel.x * sa + baseVel.y * ca);
-
-        //        p.pos = spawnPos;
-        //        p.vel = normalize(vel);
-        //        p.trail.clear();
-        //        p.trail.push_back(p.pos);
-        //        p.alive = true;
-        //        p.grInit = false;
-        //        initParticleGR(p, blackHole, aspect);
-        //    }
-
-        //    //advance particle one integration step
-        //    float dlambda = 0.0025f;
-        //    integrateParticleRK4_GR(blackHole, p, dlambda, aspect);
-
-        //    //push into trail
-        //    p.trail.push_back(p.pos);
-        //    if ((int)p.trail.size() > maxTrailLen) p.trail.erase(p.trail.begin());
-
-        //    //upload trail to VBO and draw
-        //    if (!p.trail.empty()) {
-        //        GLsizeiptr size = (GLsizeiptr)p.trail.size() * sizeof(vec3);
-        //        glBindBuffer(GL_ARRAY_BUFFER, rayVBO);
-        //        glBufferSubData(GL_ARRAY_BUFFER, 0, size, p.trail.data());
-        //        glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-        //        //set ray color
-        //        if (uColorLoc != -1) glUniform4f(uColorLoc, 0.0f, 0.0f, 0.0f, 1.0f);
-
-        //        //draw trail
-        //        drawRay((int)p.trail.size());
-
-        //        //draw head as point
-        //        glPointSize(6.0f);
-        //        glBindVertexArray(rayVAO);
-        //        glDrawArrays(GL_POINTS, 0, 1);
-        //        glBindVertexArray(0);
-        //    }
-        //}
-
-        //Swap the front and back buffers
-        //(Double Buffering)
-        //glfwSwapBuffers(window);
-
-        ////Process any input or events
-        //glfwPollEvents();
     }
 
     //Clean up GPU resources

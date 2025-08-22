@@ -42,6 +42,8 @@
     <Image Include="textures\skybox\bottom.png" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\glad\gl.h" />
+    <ClInclude Include="include\KHR\khrplatform.h" />
     <ClInclude Include="include\stb_image.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
