@@ -1,5 +1,8 @@
 #pragma once
 #include <string>
+#include "../headers/renderer.hpp"
+
+class Renderer;
 
 //Forward-declare GLFWwindow to avoid heavy includes in the header
 struct GLFWwindow;
@@ -19,4 +22,6 @@ private:
     int m_width, m_height;
     std::string m_title;
     GLFWwindow* m_window;
+
+    Renderer* m_renderer;
 };

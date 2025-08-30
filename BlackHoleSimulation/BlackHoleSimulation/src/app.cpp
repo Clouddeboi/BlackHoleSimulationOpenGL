@@ -1,6 +1,7 @@
 //Window and loop
 
 #include "../headers/app.hpp"
+#include "../headers/renderer.hpp"
 #include <stdexcept>
 #include <iostream>
 
@@ -10,14 +11,18 @@
 
 //----------------- Constructor -----------------
 App::App(int width, int height, const std::string& title)
-    : m_width(width), m_height(height), m_title(title), m_window(nullptr)
+    : m_width(width), m_height(height), m_title(title), m_window(nullptr), m_renderer(nullptr)
 {
     initGLFW();
     initGLAD();
+
+    // create renderer once we have GL context
+    m_renderer = new Renderer(m_width, m_height);
 }
 
 //----------------- Destructor -----------------
 App::~App() {
+    delete m_renderer;
     glfwDestroyWindow(m_window);
     glfwTerminate();
 }
@@ -67,6 +72,8 @@ void App::run() {
         glViewport(0, 0, m_width, m_height);
         glClearColor(0.1f, 0.0f, 0.2f, 1.0f);//Dark purple background
         glClear(GL_COLOR_BUFFER_BIT);
+
+        m_renderer->render();
 
         //Swap
         glfwSwapBuffers(m_window);
