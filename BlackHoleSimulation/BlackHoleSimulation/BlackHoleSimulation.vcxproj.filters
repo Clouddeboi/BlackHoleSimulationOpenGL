@@ -34,12 +34,30 @@
     <Filter Include="textures\skybox">
       <UniqueIdentifier>{fa61a872-3417-452d-b595-3511747a09b8}</UniqueIdentifier>
     </Filter>
+    <Filter Include="headers">
+      <UniqueIdentifier>{03cb69b5-f31c-4e9b-a6d7-247f85d685b2}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\blackhole_3d.cpp">
+    <ClCompile Include="src\app.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\renderer.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\camera.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\physics.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\glHelpers.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\grid.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\glad.c">
@@ -71,6 +89,9 @@
     <None Include="shaders\skybox\skybox.frag">
       <Filter>shaders\skybox</Filter>
     </None>
+    <None Include="shaders\geodesic.comp">
+      <Filter>shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Image Include="textures\skybox\left.png">
@@ -96,10 +117,28 @@
     <ClInclude Include="include\stb_image.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\glad\gl.h">
+    <ClInclude Include="include\KHR\khrplatform.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\KHR\khrplatform.h">
+    <ClInclude Include="headers\app.hpp">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="headers\renderer.hpp">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="headers\camera.hpp">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="headers\physics.hpp">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="headers\glHelpers.hpp">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="headers\grid.hpp">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\glad\glad.h">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>

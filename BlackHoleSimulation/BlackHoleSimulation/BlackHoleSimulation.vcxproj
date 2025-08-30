@@ -19,13 +19,19 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\blackhole_3d.cpp" />
+    <ClCompile Include="src\app.cpp" />
+    <ClCompile Include="src\camera.cpp" />
     <ClCompile Include="src\glad.c" />
+    <ClCompile Include="src\glHelpers.cpp" />
+    <ClCompile Include="src\grid.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\physics.cpp" />
+    <ClCompile Include="src\renderer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\blackHole\shader.frag" />
     <None Include="shaders\blackHole\shader.vert" />
+    <None Include="shaders\geodesic.comp" />
     <None Include="shaders\grid\shader.frag" />
     <None Include="shaders\grid\shader.vert" />
     <None Include="shaders\ray\shader.frag" />
@@ -42,7 +48,13 @@
     <Image Include="textures\skybox\bottom.png" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\glad\gl.h" />
+    <ClInclude Include="headers\app.hpp" />
+    <ClInclude Include="headers\camera.hpp" />
+    <ClInclude Include="headers\glHelpers.hpp" />
+    <ClInclude Include="headers\grid.hpp" />
+    <ClInclude Include="headers\physics.hpp" />
+    <ClInclude Include="headers\renderer.hpp" />
+    <ClInclude Include="include\glad\glad.h" />
     <ClInclude Include="include\KHR\khrplatform.h" />
     <ClInclude Include="include\stb_image.h" />
   </ItemGroup>
