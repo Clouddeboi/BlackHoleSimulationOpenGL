@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include "../headers/renderer.hpp"
+#include "../headers/camera.hpp"
 
 class Renderer;
 
@@ -24,4 +25,6 @@ private:
     GLFWwindow* m_window;
 
     Renderer* m_renderer;
+    Camera* m_camera;
+    float m_lastFrame;
 };

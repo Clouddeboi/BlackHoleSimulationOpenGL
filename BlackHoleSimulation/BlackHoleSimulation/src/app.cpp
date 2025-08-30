@@ -2,6 +2,7 @@
 
 #include "../headers/app.hpp"
 #include "../headers/renderer.hpp"
+#include "../headers/camera.hpp"
 #include <stdexcept>
 #include <iostream>
 
@@ -11,20 +12,35 @@
 
 //----------------- Constructor -----------------
 App::App(int width, int height, const std::string& title)
-    : m_width(width), m_height(height), m_title(title), m_window(nullptr), m_renderer(nullptr)
+    : m_width(width), m_height(height), m_title(title), m_window(nullptr),
+    m_renderer(nullptr), m_camera(nullptr), m_lastFrame(0.0f)
 {
     initGLFW();
     initGLAD();
 
-    // create renderer once we have GL context
+    m_camera = new Camera(60.0f, (float)m_width / m_height, 0.1f, 100.0f);
     m_renderer = new Renderer(m_width, m_height);
+
+    //Hook mouse callback
+    glfwSetWindowUserPointer(m_window, m_camera);
+    glfwSetCursorPosCallback(m_window, [](GLFWwindow* window, double xpos, double ypos) {
+        Camera* cam = reinterpret_cast<Camera*>(glfwGetWindowUserPointer(window));
+        if (cam) cam->processMouse((float)xpos, (float)ypos);
+        });
+    glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 }
 
 //----------------- Destructor -----------------
 App::~App() {
     delete m_renderer;
+    delete m_camera;
     glfwDestroyWindow(m_window);
     glfwTerminate();
+}
+
+static void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
+    Camera* cam = reinterpret_cast<Camera*>(glfwGetWindowUserPointer(window));
+    if (cam) cam->processMouse((float)xpos, (float)ypos);
 }
 
 //----------------- Init GLFW -----------------
@@ -43,6 +59,11 @@ void App::initGLFW() {
         glfwTerminate();
         throw std::runtime_error("Failed to create GLFW window!");
     }
+
+    glfwSetWindowUserPointer(m_window, m_camera);
+    glfwSetCursorPosCallback(m_window, mouse_callback);
+
+    glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     glfwMakeContextCurrent(m_window);
     glfwSwapInterval(1);//Enable vsync
@@ -67,6 +88,11 @@ void App::processInput() {
 void App::run() {
     while (!glfwWindowShouldClose(m_window)) {
         processInput();
+        float currentFrame = glfwGetTime();
+        float deltaTime = currentFrame - m_lastFrame;
+        m_lastFrame = currentFrame;
+
+        m_camera->update(deltaTime);
 
         //Render: clear screen
         glViewport(0, 0, m_width, m_height);
