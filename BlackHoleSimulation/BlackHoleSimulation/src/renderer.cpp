@@ -1,6 +1,7 @@
 //Rendering
 
 #include "../headers/renderer.hpp"
+#include "../headers/glHelpers.hpp"
 #include <glad/glad.h>
 #include <stdexcept>
 #include <iostream>
@@ -34,10 +35,17 @@ static unsigned int compileShader(unsigned int type, const std::string& src) {
 
 //----------------- Constructor -----------------
 Renderer::Renderer(int width, int height)
-    : m_quadVAO(0), m_quadVBO(0), m_shaderProgram(0)
+    : m_width(width), m_height(height), m_quadVAO(0), m_quadVBO(0), m_shaderProgram(0)
 {
     initFullscreenQuad();
     initShaders();
+
+    //init compute shader
+    m_computeShader = GLHelpers::loadComputeShader("shaders/geodesic.comp");
+
+    // init render texture
+    initRenderTexture();
+
     initUBO();
 }
 
@@ -114,13 +122,45 @@ void Renderer::initShaders() {
 
 //----------------- Render -----------------
 void Renderer::render(const Camera& camera) {
+    // Update Camera UBO
     CameraUBO data = camera.getUBO();
     glBindBuffer(GL_UNIFORM_BUFFER, m_cameraUBO);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(CameraUBO), &data);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-    // Render quad
+    // --- Compute Shader Pass ---
+    glUseProgram(m_computeShader);
+    GLuint blockIndex = glGetUniformBlockIndex(m_computeShader, "CameraBlock");
+    if (blockIndex != GL_INVALID_INDEX) {
+        glUniformBlockBinding(m_computeShader, blockIndex, 0);
+    }
+    glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_cameraUBO);
+
+    glBindImageTexture(0, m_renderTex, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+
+    // dispatch work groups
+    GLuint groupsX = (m_width + 7) / 8;
+    GLuint groupsY = (m_height + 7) / 8;
+    glDispatchCompute(groupsX, groupsY, 1);
+
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+    // --- Fullscreen Quad Pass ---
     glUseProgram(m_shaderProgram);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, m_renderTex);
+    glUniform1i(glGetUniformLocation(m_shaderProgram, "uRenderTex"), 0);
+
     glBindVertexArray(m_quadVAO);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+}
+
+void Renderer::initRenderTexture() {
+    glGenTextures(1, &m_renderTex);
+    glBindTexture(GL_TEXTURE_2D, m_renderTex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, m_width, m_height, 0, GL_RGBA, GL_FLOAT, nullptr);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glBindTexture(GL_TEXTURE_2D, 0);
 }

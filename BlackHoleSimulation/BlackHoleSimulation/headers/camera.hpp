@@ -5,6 +5,8 @@
 struct CameraUBO {
     glm::mat4 view;
     glm::mat4 proj;
+    glm::mat4 invView;
+    glm::mat4 invProj;
     glm::vec4 position;//vec4 for alignment
 };
 
@@ -20,6 +22,8 @@ public:
     glm::mat4 getViewMatrix() const;
     glm::mat4 getProjectionMatrix() const;
     glm::vec3 getPosition() const { return m_position; }
+    glm::mat4 getView() const;
+    glm::mat4 getProj() const;
 
     //Mouse input
     void processMouse(float xpos, float ypos);

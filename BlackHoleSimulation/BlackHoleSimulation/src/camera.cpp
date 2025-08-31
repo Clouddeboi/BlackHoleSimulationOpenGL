@@ -88,6 +88,13 @@ glm::mat4 Camera::getViewMatrix() const {
 glm::mat4 Camera::getProjectionMatrix() const {
     return glm::perspective(glm::radians(m_fov), m_aspect, m_near, m_far);
 }
+glm::mat4 Camera::getView() const {
+    return glm::lookAt(m_position, m_position + m_front, m_up);
+}
+
+glm::mat4 Camera::getProj() const {
+    return glm::perspective(glm::radians(m_fov), m_aspect, m_near, m_far);
+}
 
 //----------------- Update Vectors -----------------
 void Camera::updateVectors() {
@@ -102,9 +109,11 @@ void Camera::updateVectors() {
 }
 
 CameraUBO Camera::getUBO() const {
-    CameraUBO ubo{};
-    ubo.view = getViewMatrix();
-    ubo.proj = getProjectionMatrix();
-    ubo.position = glm::vec4(m_position, 1.0f);
-    return ubo;
+    CameraUBO data{};
+    data.view = getView();
+    data.proj = getProj();
+    data.invView = glm::inverse(getView());
+    data.invProj = glm::inverse(getProj());
+    data.position = glm::vec4(m_position, 1.0f);
+    return data;
 }

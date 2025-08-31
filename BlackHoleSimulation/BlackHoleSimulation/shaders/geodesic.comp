@@ -1,194 +1,64 @@
 #version 430
-layout(local_size_x = 16, local_size_y = 16) in;
 
-layout(rgba8, binding = 0) writeonly uniform image2D destTex;
+layout(local_size_x = 8, local_size_y = 8) in;
 
-layout(std140, binding = 1) uniform CameraUBO {
-    vec3 camPos; float _pad0;
-    vec3 camRight; float _pad1;
-    vec3 camUp; float _pad2;
-    vec3 camFwd; float _pad3;
-    float tanHalfFov;
-    float aspect;
-    bool moving;
-    int _pad4;
+layout(rgba32f, binding = 0) uniform image2D destTex;
+
+//Camera uniform block (matches CameraUBO in C++)
+layout(std140, binding = 0) uniform CameraBlock {
+    mat4 view;
+    mat4 proj;
+    mat4 invView;
+    mat4 invProj;
+    vec4 camPos;
 };
 
-layout(std140, binding = 2) uniform DiskUBO {
-    float diskInner;    // r_in (meters)
-    float diskOuter;    // r_out (meters)
-    float exposure;     // emission strength (previously "num")
-    float diskThickness;
-};
+//Converts pixel coordinates to a ray in world space
+vec3 generateRay(vec2 pixel, vec2 resolution) {
+    //NDC coordinates [-1, 1]
+    vec2 ndc = (pixel / resolution) * 2.0 - 1.0;
 
-layout(std140, binding = 3) uniform ObjectsUBO {
-    int numObjects;
-    vec3 _padA;
-    vec4 posRadius[16]; // xyz = position, w = r_s
-    vec4 color[16];
-    float mass[16];
-};
+    //Clip space
+    vec4 clip = vec4(ndc, -1.0, 1.0);
 
-uint wang_hash(uint seed) {
-    seed = (seed ^ 61u) ^ (seed >> 16u);
-    seed *= 9u;
-    seed = seed ^ (seed >> 4u);
-    seed *= 0x27d4eb2du;
-    seed = seed ^ (seed >> 15u);
-    return seed;
-}
-float rnd(vec2 uv) {
-    uint x = floatBitsToUint(uv.x) ^ floatBitsToUint(uv.y);
-    return float(wang_hash(x)) / 4294967296.0;
-}
+    //Eye space
+    vec4 eye = invProj * clip;
+    eye = vec4(eye.xy, -1.0, 0.0);
 
-vec3 spaceBackground(vec3 dir) {
-    float up = clamp(0.5 * (dir.y + 1.0), 0.0, 1.0);
-    vec3 top = vec3(0.01, 0.01, 0.018);
-    vec3 bottom = vec3(0.0005, 0.0005, 0.001);
-    return mix(bottom, top, pow(up, 1.6));
-}
-
-bool raySphereEntry(vec3 ro, vec3 rd, vec3 center, float r, out float t0, out float t1) {
-    vec3 L = ro - center;
-    float a = dot(rd, rd);
-    float b = 2.0 * dot(rd, L);
-    float c = dot(L, L) - r*r;
-    float disc = b*b - 4.0*a*c;
-    t0 = 0.0; t1 = 0.0;
-    if (disc < 0.0) return false;
-    float sq = sqrt(disc);
-    float tt0 = (-b - sq) / (2.0*a);
-    float tt1 = (-b + sq) / (2.0*a);
-    if (tt0 > 1e-6) { t0 = tt0; t1 = tt1; return true; }
-    else if (tt1 > 1e-6) { t0 = tt1; t1 = tt1; return true; }
-    else { t0 = 0.0; t1 = tt1; return true; }
+    //World space
+    vec3 worldDir = normalize((invView * eye).xyz);
+    return worldDir;
 }
 
 void main() {
-    ivec2 pix = ivec2(gl_GlobalInvocationID.xy);
-    ivec2 sz = imageSize(destTex);
-    if (pix.x >= sz.x || pix.y >= sz.y) return;
+    ivec2 pixelCoords = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 imageSize = imageSize(destTex);
 
-    vec2 uv = (vec2(pix) + 0.5) / vec2(sz);
-    vec2 ndc = vec2(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
+    if (pixelCoords.x >= imageSize.x || pixelCoords.y >= imageSize.y) return;
 
-    vec3 rd = normalize(
-        camFwd +
-        camRight * (ndc.x * tanHalfFov * aspect) +
-        camUp    * (ndc.y * tanHalfFov)
-    );
-    vec3 ro = camPos;
+    vec2 resolution = vec2(imageSize);
+    vec3 rayDir = generateRay(vec2(pixelCoords) + 0.5, resolution);
+    vec3 rayOrigin = camPos.xyz;
 
-    int bhIdx = max(0, numObjects - 1);
-    vec3 bhPos = posRadius[bhIdx].xyz;
-    float bhRs = posRadius[bhIdx].w;
-    vec3 bhColor = color[bhIdx].rgb;
+    //--- Simple scene: infinite ground plane at y=0 ---
+    vec3 color;
 
-    float tSphereEntry, tSphereExit;
-    bool sphereHit = raySphereEntry(ro, rd, bhPos, bhRs, tSphereEntry, tSphereExit);
-
-    bool diskHit = false;
-    float tDisk = 1e30;
-    vec3 pDiskHit = vec3(0.0);
-    if (abs(rd.y) > 1e-9) {
-        float tplane = (bhPos.y - ro.y) / rd.y;
-        if (tplane > 1e-6) {
-            vec3 p = ro + rd * tplane;
-            float rrad = length(p.xz - bhPos.xz);
-            if (rrad >= diskInner && rrad <= diskOuter) {
-                diskHit = true;
-                tDisk = tplane;
-                pDiskHit = p;
-            }
-        }
-    }
-
-    float tca = dot(bhPos - ro, rd);
-    vec3 pca = ro + rd * tca;
-    float minDist = length(pca - bhPos);
-
-    vec3 bg = spaceBackground(rd);
-    float starProb = 0.0009;
-    float seed = fract(sin(dot(rd.xy, vec2(12.9898,78.233))) * 43758.5453);
-    float starRand = rnd(vec2(seed, seed*12.345));
-    vec3 starCol = vec3(0.0);
-    if (starRand < starProb) {
-        float inten = mix(0.6, 1.0, starRand / starProb);
-        starCol = vec3(1.0) * inten;
-        float lensBoost = clamp(1.0 - minDist / (bhRs * 8.0), 0.0, 1.0);
-        starCol += vec3(1.0) * lensBoost * 0.6;
-    }
-
-    float rim = 0.0;
-    float rimThreshold = bhRs * 1.6;
-    float rimSoft = bhRs * 0.25;
-    if (minDist < rimThreshold) rim = smoothstep(rimThreshold, rimThreshold - rimSoft, minDist);
-    vec3 rimColor = bhColor * rim * 1.6;
-
-    vec3 diskColor = vec3(0.0);
-    if (diskHit) {
-        float rr = length(pDiskHit.xz - bhPos.xz);
-        float normR = (rr - diskInner) / max(1e-6, (diskOuter - diskInner));
-        float emiss = pow(1.0 - normR, 2.2) * max(0.02, exposure);
-        diskColor = vec3(0.92, 0.45, 0.12) * emiss;
-        vec3 tangent = normalize(vec3(-(pDiskHit.z - bhPos.z), 0.0, (pDiskHit.x - bhPos.x)));
-        float doppler = clamp(0.5 + 0.5 * (-dot(tangent, rd)), 0.0, 2.0);
-        diskColor *= (0.6 + 0.6 * doppler) * 0.65;
-    }
-
-    vec3 sphereShaded = vec3(0.0);
-    if (sphereHit) {
-        float tForP = max(tSphereEntry, 1e-4);
-        vec3 P = ro + rd * tForP;
-        vec3 N = normalize(P - bhPos);
-        vec3 V = normalize(camPos - P);
-        vec3 L = normalize(normalize(camPos - bhPos) + vec3(0.0, 0.12, 0.0));
-        float NdotL = clamp(dot(N, L), 0.0, 1.0);
-        float NdotV = clamp(dot(N, V), 0.0, 1.0);
-
-        vec3 ambient = vec3(0.05);
-        vec3 lam = vec3(0.20) * NdotL * (1.0 - rim);
-        float spec = pow(max(dot(reflect(-L, N), V), 0.0), 32.0) * 0.35;
-        vec3 specCol = vec3(spec);
-        float rimFactor = pow(1.0 - clamp(dot(V, N), 0.0, 1.0), 3.0);
-        vec3 rimLocal = bhColor * rimFactor * 1.6;
-
-        sphereShaded = ambient + lam + specCol + rimLocal;
-        sphereShaded = clamp(sphereShaded, vec3(0.08), vec3(1.0));
-    }
-
-    vec3 finalCol = bg + starCol;
-
-    bool rayPassesWithinBH = (minDist < bhRs * 1.01);
-    bool sphereInFront = sphereHit && (!diskHit || tSphereEntry < tDisk);
-
-    if (sphereInFront) finalCol = sphereShaded;
-
-    if (diskHit) {
-        float diskAlpha = 0.85;
-        finalCol = mix(finalCol, diskColor, diskAlpha);
-        if (rayPassesWithinBH) {
-            float silhouetteStrength = 0.96;
-            finalCol = mix(finalCol, vec3(0.0), silhouetteStrength);
-            finalCol = mix(finalCol, rimColor + vec3(0.01), clamp(rim * 1.0, 0.0, 1.0));
+    if (rayDir.y < -0.001) {
+        //intersect ground plane
+        float t = -rayOrigin.y / rayDir.y;
+        if (t > 0.0) {
+            vec3 hitPos = rayOrigin + rayDir * t;
+            //Checkerboard floor pattern
+            float checker = mod(floor(hitPos.x) + floor(hitPos.z), 2.0);
+            color = mix(vec3(0.8, 0.8, 0.8), vec3(0.1, 0.1, 0.1), checker);
         } else {
-            finalCol = mix(finalCol, rimColor * 0.5, clamp(rim * 0.7, 0.0, 1.0));
+            color = vec3(0.5, 0.7, 1.0); //background sky
         }
     } else {
-        if (rayPassesWithinBH && !sphereInFront) finalCol = sphereShaded;
-        else finalCol = clamp(finalCol + rimColor * 0.9, 0.0, 1.0);
+        //sky
+        float t = 0.5 * (rayDir.y + 1.0);
+        color = mix(vec3(0.7, 0.8, 1.0), vec3(0.2, 0.3, 0.5), t);
     }
 
-    // --- Photon ring addition ---
-    float photonRadius = bhRs * 1.5;
-    float ringWidth = 0.05 * bhRs;
-    float ring = smoothstep(photonRadius + ringWidth, photonRadius, minDist) *
-                 smoothstep(photonRadius - ringWidth, photonRadius, minDist);
-    vec3 photonColor = vec3(1.0, 0.85, 0.6);
-    finalCol += photonColor * ring * 1.8;
-    // --- End photon ring ---
-
-    finalCol = clamp(finalCol, 0.0, 1.0);
-    imageStore(destTex, pix, vec4(finalCol, 1.0));
+    imageStore(destTex, pixelCoords, vec4(color, 1.0));
 }
