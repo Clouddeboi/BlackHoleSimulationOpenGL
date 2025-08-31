@@ -38,6 +38,7 @@ Renderer::Renderer(int width, int height)
 {
     initFullscreenQuad();
     initShaders();
+    initUBO();
 }
 
 //----------------- Destructor -----------------
@@ -45,6 +46,14 @@ Renderer::~Renderer() {
     glDeleteProgram(m_shaderProgram);
     glDeleteVertexArrays(1, &m_quadVAO);
     glDeleteBuffers(1, &m_quadVBO);
+}
+
+void Renderer::initUBO() {
+    glGenBuffers(1, &m_cameraUBO);
+    glBindBuffer(GL_UNIFORM_BUFFER, m_cameraUBO);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(CameraUBO), nullptr, GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_cameraUBO);//binding=0
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
 //----------------- Fullscreen Quad -----------------
@@ -104,8 +113,14 @@ void Renderer::initShaders() {
 }
 
 //----------------- Render -----------------
-void Renderer::render() {
+void Renderer::render(const Camera& camera) {
+    CameraUBO data = camera.getUBO();
+    glBindBuffer(GL_UNIFORM_BUFFER, m_cameraUBO);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(CameraUBO), &data);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+    // Render quad
     glUseProgram(m_shaderProgram);
     glBindVertexArray(m_quadVAO);
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
 }

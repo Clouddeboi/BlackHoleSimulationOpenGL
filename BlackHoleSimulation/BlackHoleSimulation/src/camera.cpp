@@ -100,3 +100,11 @@ void Camera::updateVectors() {
     m_right = glm::normalize(glm::cross(m_front, glm::vec3(0.0f, 1.0f, 0.0f)));
     m_up = glm::normalize(glm::cross(m_right, m_front));
 }
+
+CameraUBO Camera::getUBO() const {
+    CameraUBO ubo{};
+    ubo.view = getViewMatrix();
+    ubo.proj = getProjectionMatrix();
+    ubo.position = glm::vec4(m_position, 1.0f);
+    return ubo;
+}

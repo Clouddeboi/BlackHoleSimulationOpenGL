@@ -1,5 +1,12 @@
 #pragma once
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
+struct CameraUBO {
+    glm::mat4 view;
+    glm::mat4 proj;
+    glm::vec4 position;//vec4 for alignment
+};
 
 //Simple free-fly camera
 class Camera {
@@ -16,6 +23,7 @@ public:
 
     //Mouse input
     void processMouse(float xpos, float ypos);
+    CameraUBO getUBO() const;
 
 private:
     //State

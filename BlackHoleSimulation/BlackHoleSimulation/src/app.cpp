@@ -99,7 +99,7 @@ void App::run() {
         glClearColor(0.1f, 0.0f, 0.2f, 1.0f);//Dark purple background
         glClear(GL_COLOR_BUFFER_BIT);
 
-        m_renderer->render();
+        m_renderer->render(*m_camera);
 
         //Swap
         glfwSwapBuffers(m_window);
