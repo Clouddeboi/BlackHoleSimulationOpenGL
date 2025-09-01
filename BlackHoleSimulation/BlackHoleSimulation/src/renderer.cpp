@@ -43,10 +43,11 @@ Renderer::Renderer(int width, int height)
     //init compute shader
     m_computeShader = GLHelpers::loadComputeShader("shaders/geodesic.comp");
 
-    // init render texture
+    //init render texture
     initRenderTexture();
 
     initUBO();
+    initBlackHoleUBO();
 }
 
 //----------------- Destructor -----------------
@@ -54,6 +55,7 @@ Renderer::~Renderer() {
     glDeleteProgram(m_shaderProgram);
     glDeleteVertexArrays(1, &m_quadVAO);
     glDeleteBuffers(1, &m_quadVBO);
+    glDeleteBuffers(1, &m_blackHoleUBO);
 }
 
 void Renderer::initUBO() {
@@ -61,6 +63,14 @@ void Renderer::initUBO() {
     glBindBuffer(GL_UNIFORM_BUFFER, m_cameraUBO);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(CameraUBO), nullptr, GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_cameraUBO);//binding=0
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+}
+
+void Renderer::initBlackHoleUBO() {
+    glGenBuffers(1, &m_blackHoleUBO);
+    glBindBuffer(GL_UNIFORM_BUFFER, m_blackHoleUBO);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(BlackHoleUBO), nullptr, GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_UNIFORM_BUFFER, 1, m_blackHoleUBO); // binding=1
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
@@ -135,6 +145,21 @@ void Renderer::render(const Camera& camera) {
         glUniformBlockBinding(m_computeShader, blockIndex, 0);
     }
     glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_cameraUBO);
+
+    // Update Black Hole UBO
+    BlackHoleUBO bhData;
+    bhData.bhPosition = glm::vec3(0.0f, 0.0f, 0.0f); // Center of world
+    bhData.bhRadius = 1.0f; // Example radius
+    glBindBuffer(GL_UNIFORM_BUFFER, m_blackHoleUBO);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(BlackHoleUBO), &bhData);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+    // Bind to compute shader
+    GLuint bhBlockIndex = glGetUniformBlockIndex(m_computeShader, "BlackHoleBlock");
+    if (bhBlockIndex != GL_INVALID_INDEX) {
+        glUniformBlockBinding(m_computeShader, bhBlockIndex, 1);
+    }
+    glBindBufferBase(GL_UNIFORM_BUFFER, 1, m_blackHoleUBO);
 
     glBindImageTexture(0, m_renderTex, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
 

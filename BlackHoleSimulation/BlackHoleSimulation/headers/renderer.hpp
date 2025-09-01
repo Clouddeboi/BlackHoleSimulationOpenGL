@@ -26,6 +26,14 @@ private:
     GLuint m_renderTex;
     GLuint m_cameraUBO;
 
+    GLuint m_blackHoleUBO;
+
     void initUBO();
+    void initBlackHoleUBO();
     void initRenderTexture();
+};
+
+struct BlackHoleUBO {
+    glm::vec3 bhPosition;
+    float bhRadius;
 };
