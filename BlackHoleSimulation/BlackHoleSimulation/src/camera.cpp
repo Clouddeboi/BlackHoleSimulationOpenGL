@@ -23,7 +23,9 @@ void Camera::update(float deltaTime) {
     GLFWwindow* window = glfwGetCurrentContext();
     if (!window) return;
 
-    float velocity = m_speed * deltaTime;
+    //Speed boost with Left Shift
+    float speedMultiplier = (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) ? 4.0f : 1.0f;
+    float velocity = m_speed * speedMultiplier * deltaTime;
 
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
         m_position += m_front * velocity;
@@ -52,6 +54,21 @@ void Camera::update(float deltaTime) {
         //    << m_position.x << ", "
         //    << m_position.y << ", "
         //    << m_position.z << std::endl;
+    }
+    //Up/Down
+    if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
+        m_position += m_up * velocity;
+    }
+    if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
+        m_position -= m_up * velocity;
+    }
+
+    //Focus on black hole (reset position and orientation)
+    if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS) {
+        m_position = glm::vec3(0.0f, 0.0f, 40.0f);
+        m_yaw = -90.0f;
+        m_pitch = 0.0f;
+        updateVectors();
     }
 }
 

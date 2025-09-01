@@ -34,9 +34,9 @@ static GLuint compileShader(GLenum type, const std::string& src) {
 Grid3D::Grid3D(float min, float max, float spacing, float bhRadius)
     : m_vao(0), m_vbo(0), m_vertexCount(0), m_shaderProgram(0)
 {
-    // Make the well depth and width proportional to the black hole radius
-    float wellDepth = bhRadius * 1.2f; // or 1.0f for exact event horizon
-    float sigma = bhRadius * 2.5f;     // controls the width of the well
+    //Make the well depth and width proportional to the black hole radius
+    float wellDepth = bhRadius * 1.0f;
+    float sigma = bhRadius * 2.5f;//controls the width of the well
 
     std::vector<glm::vec3> vertices;
 
