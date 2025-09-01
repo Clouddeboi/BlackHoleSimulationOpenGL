@@ -49,6 +49,12 @@ Renderer::Renderer(int width, int height)
     initUBO();
     initBlackHoleUBO();
 
+    glGenBuffers(1, &m_diskUBO);
+    glBindBuffer(GL_UNIFORM_BUFFER, m_diskUBO);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(DiskBlock), nullptr, GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_UNIFORM_BUFFER, 2, m_diskUBO);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
     //Schwarzschild radius calculation for a real black hole
     //Physical constants:
     constexpr double G = 6.67430e-11;//Gravitational constant (m^3 kg^-1 s^-2)
@@ -56,7 +62,7 @@ Renderer::Renderer(int width, int height)
     constexpr double solarMass = 1.98847e30;//Mass of the sun (kg)
 
 	//Black hole mass (in kg) (10 solar masses)
-    double mass = 25.0 * solarMass;
+    double mass = 5.0 * solarMass;
 
     // Schwarzschild radius formula:
     //r_s = 2 * G * M / c^2
@@ -72,6 +78,7 @@ Renderer::Renderer(int width, int height)
     //convert to simulation units
     bhRadiusSim = static_cast<float>(rs_meters * scale);
 
+    //Setup grid
     m_grid = new Grid3D(-50.0f, 50.0f, 1.0f, bhRadiusSim);
 }
 
@@ -82,6 +89,7 @@ Renderer::~Renderer() {
     glDeleteBuffers(1, &m_quadVBO);
     glDeleteBuffers(1, &m_blackHoleUBO);
     delete m_grid;
+    //delete m_disk;
 }
 
 void Renderer::initUBO() {
@@ -164,6 +172,16 @@ void Renderer::render(const Camera& camera) {
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(CameraUBO), &data);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
+    DiskBlock diskBlock;
+    diskBlock.diskInnerRadius = bhRadiusSim * 3.0f;
+    diskBlock.diskOuterRadius = bhRadiusSim * 10.0f;
+    diskBlock.diskColor = glm::vec3(1.0f, 0.7f, 0.2f);
+    diskBlock._pad = 0.0f;
+
+    glBindBuffer(GL_UNIFORM_BUFFER, m_diskUBO);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(DiskBlock), &diskBlock);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
     // --- Compute Shader Pass ---
     glUseProgram(m_computeShader);
     GLuint blockIndex = glGetUniformBlockIndex(m_computeShader, "CameraBlock");
@@ -174,7 +192,7 @@ void Renderer::render(const Camera& camera) {
 
     // Update Black Hole UBO
     BlackHoleUBO bhData;
-    bhData.bhPosition = glm::vec3(0.0f, 0.0f, 0.0f); // Center of world
+    bhData.bhPosition = glm::vec3(0.0f, 0.0f, 0.0f); //Center of world
 
 	//set the raduis in the UBO
     bhData.bhRadius = bhRadiusSim;
@@ -210,6 +228,7 @@ void Renderer::render(const Camera& camera) {
 
     // Draw the 3D grid
     m_grid->draw(camera.getViewMatrix(), camera.getProjectionMatrix());
+    //m_disk->draw(camera.getViewMatrix(), camera.getProjectionMatrix());
 }
 
 void Renderer::initRenderTexture() {

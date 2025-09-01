@@ -30,6 +30,7 @@ private:
     GLuint m_cameraUBO;
 
     GLuint m_blackHoleUBO;
+    GLuint m_diskUBO;
 
 	float bhRadiusSim;
 
@@ -41,4 +42,11 @@ private:
 struct BlackHoleUBO {
     glm::vec3 bhPosition;
     float bhRadius;
+};
+
+struct DiskBlock {
+    float diskInnerRadius;
+    float diskOuterRadius;
+    glm::vec3 diskColor;
+    float _pad;
 };

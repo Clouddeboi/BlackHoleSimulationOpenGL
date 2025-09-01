@@ -98,6 +98,9 @@
     <None Include="shaders\blit.vert">
       <Filter>shaders</Filter>
     </None>
+    <None Include="shaders\accretionDisk.frag">
+      <Filter>shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Image Include="textures\skybox\left.png">
