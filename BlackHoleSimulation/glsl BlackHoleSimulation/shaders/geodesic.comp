@@ -1,0 +1,66 @@
+#version 430
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(rgba32f, binding = 0) uniform image2D destTex;
+
+layout(std140, binding = 0) uniform CameraBlock {
+    mat4 view;
+    mat4 proj;
+    mat4 invView;
+    mat4 invProj;
+    vec4 camPos;
+};
+
+layout(std140, binding = 1) uniform BlackHoleBlock {
+    vec3 bhPosition;
+    float bhRadius;
+};
+
+vec3 generateRay(vec2 pixel, vec2 resolution) {
+    vec2 ndc = (pixel / resolution) * 2.0 - 1.0;
+    vec4 clip = vec4(ndc, -1.0, 1.0);
+    vec4 eye = invProj * clip;
+    eye = vec4(eye.xy, -1.0, 0.0);
+    return normalize((invView * eye).xyz);
+}
+
+bool raySphereIntersect(vec3 rayOrigin, vec3 rayDir, vec3 sphereCenter, float sphereRadius, out float t) {
+    vec3 oc = rayOrigin - sphereCenter;
+    float a = dot(rayDir, rayDir);
+    float b = 2.0 * dot(oc, rayDir);
+    float c = dot(oc, oc) - sphereRadius * sphereRadius;
+    float discriminant = b * b - 4.0 * a * c;
+    if (discriminant < 0.0) {
+        t = -1.0;
+        return false;
+    } else {
+        t = (-b - sqrt(discriminant)) / (2.0 * a);
+        return t > 0.0;
+    }
+}
+
+void main() {
+    ivec2 pixelCoords = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 imageSize = imageSize(destTex);
+
+    if (pixelCoords.x >= imageSize.x || pixelCoords.y >= imageSize.y) return;
+
+    vec2 resolution = vec2(imageSize);
+    vec3 rayDir = generateRay(vec2(pixelCoords) + 0.5, resolution);
+    vec3 rayOrigin = camPos.xyz;
+
+    vec3 color;
+    float t;
+    bool hit = raySphereIntersect(rayOrigin, rayDir, bhPosition, bhRadius, t);
+
+    if (hit) {
+        color = vec3(0.0);
+    } else {
+        // Sky color
+        float tSky = 0.5 * (rayDir.y + 1.0);
+        color = mix(vec3(0.7, 0.8, 1.0), vec3(0.2, 0.3, 0.5), tSky);
+    }
+
+    imageStore(destTex, pixelCoords, vec4(color, 1.0));
+}

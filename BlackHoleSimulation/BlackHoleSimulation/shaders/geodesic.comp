@@ -70,19 +70,36 @@ void main() {
     if (hit) {
         color = vec3(0.0); // Black for event horizon
     } else {
+        // Intersect with y=0 plane as before
         if (rayDir.y < -0.001) {
-            //intersect ground plane
-            float t = -rayOrigin.y / rayDir.y;
-            if (t > 0.0) {
-                vec3 hitPos = rayOrigin + rayDir * t;
-                //Checkerboard floor pattern
-                float checker = mod(floor(hitPos.x) + floor(hitPos.z), 2.0);
-                color = mix(vec3(0.8, 0.8, 0.8), vec3(0.1, 0.1, 0.1), checker);
+            float tPlane = -rayOrigin.y / rayDir.y;
+            if (tPlane > 0.0) {
+                vec3 hitPos = rayOrigin + rayDir * tPlane;
+
+                // Compute distance from black hole center in XZ plane
+                vec2 toBH = hitPos.xz - bhPosition.xz;
+                float r = length(toBH);
+
+                // Apply a distortion based on radius (tune the formula for effect)
+                float distortion = 1.0 + (bhRadius * bhRadius) / (r * r + 1e-4);
+                vec2 warped = toBH * distortion;
+
+                // Use warped coordinates for grid lines
+                float gridX = abs(fract(warped.x) - 0.5);
+                float gridZ = abs(fract(warped.y) - 0.5);
+                float line = min(gridX, gridZ);
+
+                // Make lines thinner near the black hole
+                float thickness = mix(0.01, 0.05, smoothstep(0.0, bhRadius * 2.0, r));
+                float grid = smoothstep(thickness, 0.0, line);
+
+                // Color: white grid on blue background
+                color = mix(vec3(0.2, 0.3, 0.5), vec3(1.0), grid);
             } else {
-                color = vec3(0.5, 0.7, 1.0); //background sky
+                color = vec3(0.5, 0.7, 1.0); // sky
             }
         } else {
-            //sky
+            // sky
             float t = 0.5 * (rayDir.y + 1.0);
             color = mix(vec3(0.7, 0.8, 1.0), vec3(0.2, 0.3, 0.5), t);
         }

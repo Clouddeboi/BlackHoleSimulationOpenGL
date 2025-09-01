@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include "../headers/camera.hpp"
+#include "../headers/grid.hpp"
 #include <glad/glad.h>
 
 //Forward declaration
@@ -15,6 +16,8 @@ public:
 
 private:
     int m_width, m_height;
+
+    Grid3D* m_grid;
 
     void initFullscreenQuad();
     void initShaders();

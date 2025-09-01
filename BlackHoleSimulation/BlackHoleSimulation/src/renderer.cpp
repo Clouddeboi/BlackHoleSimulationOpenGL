@@ -48,6 +48,8 @@ Renderer::Renderer(int width, int height)
 
     initUBO();
     initBlackHoleUBO();
+
+    m_grid = new Grid3D(-10.0f, 10.0f, 1.0f);
 }
 
 //----------------- Destructor -----------------
@@ -56,6 +58,7 @@ Renderer::~Renderer() {
     glDeleteVertexArrays(1, &m_quadVAO);
     glDeleteBuffers(1, &m_quadVBO);
     glDeleteBuffers(1, &m_blackHoleUBO);
+    delete m_grid;
 }
 
 void Renderer::initUBO() {
@@ -149,7 +152,7 @@ void Renderer::render(const Camera& camera) {
     // Update Black Hole UBO
     BlackHoleUBO bhData;
     bhData.bhPosition = glm::vec3(0.0f, 0.0f, 0.0f); // Center of world
-    bhData.bhRadius = 1.0f; // Example radius
+    bhData.bhRadius = 3.0f; // Example radius
     glBindBuffer(GL_UNIFORM_BUFFER, m_blackHoleUBO);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(BlackHoleUBO), &bhData);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
@@ -178,6 +181,9 @@ void Renderer::render(const Camera& camera) {
 
     glBindVertexArray(m_quadVAO);
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+    // Draw the 3D grid
+    m_grid->draw(camera.getViewMatrix(), camera.getProjectionMatrix());
 }
 
 void Renderer::initRenderTexture() {
