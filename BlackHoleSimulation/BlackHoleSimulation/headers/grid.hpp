@@ -6,7 +6,7 @@
 
 class Grid3D {
 public:
-    Grid3D(float min, float max, float spacing);
+    Grid3D(float min, float max, float spacing, float bhRadius);
     ~Grid3D();
 
     void draw(const glm::mat4& view, const glm::mat4& proj);

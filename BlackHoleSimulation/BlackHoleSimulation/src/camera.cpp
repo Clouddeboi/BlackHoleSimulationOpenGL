@@ -7,7 +7,7 @@
 
 //----------------- Constructor -----------------
 Camera::Camera(float fov, float aspect, float nearPlane, float farPlane)
-    : m_position(0.0f, 0.0f, 3.0f),
+    : m_position(30.0f, 0.0f, 3.0f),
     m_front(0.0f, 0.0f, -1.0f),
     m_up(0.0f, 1.0f, 0.0f),
     m_yaw(-90.0f), m_pitch(0.0f),
@@ -27,31 +27,31 @@ void Camera::update(float deltaTime) {
 
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
         m_position += m_front * velocity;
-        std::cout << "W pressed - moving forward, position: "
-            << m_position.x << ", "
-            << m_position.y << ", "
-            << m_position.z << std::endl;
+        //std::cout << "W pressed - moving forward, position: "
+        //    << m_position.x << ", "
+        //    << m_position.y << ", "
+        //    << m_position.z << std::endl;
     }
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
         m_position -= m_front * velocity;
-        std::cout << "S pressed - moving backward, position: "
-            << m_position.x << ", "
-            << m_position.y << ", "
-            << m_position.z << std::endl;
+        //std::cout << "S pressed - moving backward, position: "
+        //    << m_position.x << ", "
+        //    << m_position.y << ", "
+        //    << m_position.z << std::endl;
     }
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
         m_position -= m_right * velocity;
-        std::cout << "A pressed - moving left, position: "
-            << m_position.x << ", "
-            << m_position.y << ", "
-            << m_position.z << std::endl;
+        //std::cout << "A pressed - moving left, position: "
+        //    << m_position.x << ", "
+        //    << m_position.y << ", "
+        //    << m_position.z << std::endl;
     }
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
         m_position += m_right * velocity;
-        std::cout << "D pressed - moving right, position: "
-            << m_position.x << ", "
-            << m_position.y << ", "
-            << m_position.z << std::endl;
+        //std::cout << "D pressed - moving right, position: "
+        //    << m_position.x << ", "
+        //    << m_position.y << ", "
+        //    << m_position.z << std::endl;
     }
 }
 

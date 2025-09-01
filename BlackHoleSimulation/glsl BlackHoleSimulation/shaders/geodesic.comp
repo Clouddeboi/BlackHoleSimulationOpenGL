@@ -40,6 +40,11 @@ bool raySphereIntersect(vec3 rayOrigin, vec3 rayDir, vec3 sphereCenter, float sp
     }
 }
 
+// Hash for star placement based on direction
+float hash(vec3 p) {
+    return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
+}
+
 void main() {
     ivec2 pixelCoords = ivec2(gl_GlobalInvocationID.xy);
     ivec2 imageSize = imageSize(destTex);
@@ -57,9 +62,15 @@ void main() {
     if (hit) {
         color = vec3(0.0);
     } else {
-        // Sky color
+        // Space-like gradient: deep blue to purple
         float tSky = 0.5 * (rayDir.y + 1.0);
-        color = mix(vec3(0.7, 0.8, 1.0), vec3(0.2, 0.3, 0.5), tSky);
+        vec3 topColor = vec3(0.08, 0.10, 0.18);   // deep blue
+        vec3 bottomColor = vec3(0.02, 0.01, 0.05); // almost black
+        color = mix(bottomColor, topColor, pow(tSky, 0.7));
+
+        // Uniform procedural stars: use only direction, not pixelCoords
+        float star = step(0.9993, hash(normalize(rayDir) * 100.0));
+        color += star * vec3(1.0, 1.0, 0.9) * 1.2;
     }
 
     imageStore(destTex, pixelCoords, vec4(color, 1.0));

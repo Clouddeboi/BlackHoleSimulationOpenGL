@@ -31,16 +31,15 @@ static GLuint compileShader(GLenum type, const std::string& src) {
     return shader;
 }
 
-Grid3D::Grid3D(float min, float max, float spacing)
+Grid3D::Grid3D(float min, float max, float spacing, float bhRadius)
     : m_vao(0), m_vbo(0), m_vertexCount(0), m_shaderProgram(0)
 {
-    //Parameters for the well
-    float wellDepth = 4.0f;
-    float sigma = (max - min) * 0.25f;
+    // Make the well depth and width proportional to the black hole radius
+    float wellDepth = bhRadius * 1.2f; // or 1.0f for exact event horizon
+    float sigma = bhRadius * 2.5f;     // controls the width of the well
 
     std::vector<glm::vec3> vertices;
 
-    //X lines (varying x, fixed z)
     for (float x = min; x <= max; x += spacing) {
         for (float z = min; z < max; z += spacing) {
             float y1 = -wellDepth * std::exp(-(x * x + z * z) / (2.0f * sigma * sigma));
@@ -49,7 +48,6 @@ Grid3D::Grid3D(float min, float max, float spacing)
             vertices.push_back({ x, y2, z + spacing });
         }
     }
-    //Z lines (varying z, fixed x)
     for (float z = min; z <= max; z += spacing) {
         for (float x = min; x < max; x += spacing) {
             float y1 = -wellDepth * std::exp(-(x * x + z * z) / (2.0f * sigma * sigma));

@@ -31,6 +31,8 @@ private:
 
     GLuint m_blackHoleUBO;
 
+	float bhRadiusSim;
+
     void initUBO();
     void initBlackHoleUBO();
     void initRenderTexture();

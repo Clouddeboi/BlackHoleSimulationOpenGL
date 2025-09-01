@@ -49,7 +49,30 @@ Renderer::Renderer(int width, int height)
     initUBO();
     initBlackHoleUBO();
 
-    m_grid = new Grid3D(-10.0f, 10.0f, 1.0f);
+    //Schwarzschild radius calculation for a real black hole
+    //Physical constants:
+    constexpr double G = 6.67430e-11;//Gravitational constant (m^3 kg^-1 s^-2)
+    constexpr double c = 2.99792458e8;//Speed of light in vacuum (m/s)
+    constexpr double solarMass = 1.98847e30;//Mass of the sun (kg)
+
+	//Black hole mass (in kg) (10 solar masses)
+    double mass = 25.0 * solarMass;
+
+    // Schwarzschild radius formula:
+    //r_s = 2 * G * M / c^2
+    //- r_s: Schwarzschild radius (meters)
+    //- G: gravitational constant
+    //- M: black hole mass (kg)
+    //- c: speed of light (m/s)
+    double rs_meters = 2.0 * G * mass / (c * c);
+
+    //Simulation scale factor to convert meters to simulation units
+    double scale = 0.0001016;
+
+    //convert to simulation units
+    bhRadiusSim = static_cast<float>(rs_meters * scale);
+
+    m_grid = new Grid3D(-50.0f, 50.0f, 1.0f, bhRadiusSim);
 }
 
 //----------------- Destructor -----------------
@@ -152,7 +175,10 @@ void Renderer::render(const Camera& camera) {
     // Update Black Hole UBO
     BlackHoleUBO bhData;
     bhData.bhPosition = glm::vec3(0.0f, 0.0f, 0.0f); // Center of world
-    bhData.bhRadius = 3.0f; // Example radius
+
+	//set the raduis in the UBO
+    bhData.bhRadius = bhRadiusSim;
+
     glBindBuffer(GL_UNIFORM_BUFFER, m_blackHoleUBO);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(BlackHoleUBO), &bhData);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);

@@ -4,7 +4,6 @@ layout(local_size_x = 8, local_size_y = 8) in;
 
 layout(rgba32f, binding = 0) uniform image2D destTex;
 
-//Camera uniform block (matches CameraUBO in C++)
 layout(std140, binding = 0) uniform CameraBlock {
     mat4 view;
     mat4 proj;
@@ -13,27 +12,17 @@ layout(std140, binding = 0) uniform CameraBlock {
     vec4 camPos;
 };
 
-// Black Hole uniform block (matches BlackHoleUBO in C++)
 layout(std140, binding = 1) uniform BlackHoleBlock {
     vec3 bhPosition;
     float bhRadius;
 };
 
-//Converts pixel coordinates to a ray in world space
 vec3 generateRay(vec2 pixel, vec2 resolution) {
-    //NDC coordinates [-1, 1]
     vec2 ndc = (pixel / resolution) * 2.0 - 1.0;
-
-    //Clip space
     vec4 clip = vec4(ndc, -1.0, 1.0);
-
-    //Eye space
     vec4 eye = invProj * clip;
     eye = vec4(eye.xy, -1.0, 0.0);
-
-    //World space
-    vec3 worldDir = normalize((invView * eye).xyz);
-    return worldDir;
+    return normalize((invView * eye).xyz);
 }
 
 bool raySphereIntersect(vec3 rayOrigin, vec3 rayDir, vec3 sphereCenter, float sphereRadius, out float t) {
@@ -61,48 +50,18 @@ void main() {
     vec3 rayDir = generateRay(vec2(pixelCoords) + 0.5, resolution);
     vec3 rayOrigin = camPos.xyz;
 
-    //--- Simple scene: infinite ground plane at y=0 ---
     vec3 color;
-
     float t;
     bool hit = raySphereIntersect(rayOrigin, rayDir, bhPosition, bhRadius, t);
 
     if (hit) {
-        color = vec3(0.0); // Black for event horizon
+        color = vec3(0.0);
     } else {
-        // Intersect with y=0 plane as before
-        if (rayDir.y < -0.001) {
-            float tPlane = -rayOrigin.y / rayDir.y;
-            if (tPlane > 0.0) {
-                vec3 hitPos = rayOrigin + rayDir * tPlane;
-
-                // Compute distance from black hole center in XZ plane
-                vec2 toBH = hitPos.xz - bhPosition.xz;
-                float r = length(toBH);
-
-                // Apply a distortion based on radius (tune the formula for effect)
-                float distortion = 1.0 + (bhRadius * bhRadius) / (r * r + 1e-4);
-                vec2 warped = toBH * distortion;
-
-                // Use warped coordinates for grid lines
-                float gridX = abs(fract(warped.x) - 0.5);
-                float gridZ = abs(fract(warped.y) - 0.5);
-                float line = min(gridX, gridZ);
-
-                // Make lines thinner near the black hole
-                float thickness = mix(0.01, 0.05, smoothstep(0.0, bhRadius * 2.0, r));
-                float grid = smoothstep(thickness, 0.0, line);
-
-                // Color: white grid on blue background
-                color = mix(vec3(0.2, 0.3, 0.5), vec3(1.0), grid);
-            } else {
-                color = vec3(0.5, 0.7, 1.0); // sky
-            }
-        } else {
-            // sky
-            float t = 0.5 * (rayDir.y + 1.0);
-            color = mix(vec3(0.7, 0.8, 1.0), vec3(0.2, 0.3, 0.5), t);
-        }
+        // Space-like gradient: deep blue to purple
+        float tSky = 0.5 * (rayDir.y + 1.0);
+        vec3 topColor = vec3(0.08, 0.10, 0.18);   // deep blue
+        vec3 bottomColor = vec3(0.02, 0.01, 0.05); // almost black
+        color = mix(bottomColor, topColor, pow(tSky, 0.7));
     }
 
     imageStore(destTex, pixelCoords, vec4(color, 1.0));
