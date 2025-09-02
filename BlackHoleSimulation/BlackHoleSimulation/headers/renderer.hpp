@@ -34,11 +34,16 @@ private:
     GLuint m_blackHoleUBO;
     GLuint m_diskUBO;
 
+    GLuint m_bloomExtractTex = 0, m_bloomBlurTex[2] = { 0, 0 };
+    GLuint m_bloomExtractFBO = 0, m_bloomBlurFBO[2] = { 0, 0 };
+    GLuint m_bloomExtractShader = 0, m_bloomBlurShader = 0;
+
 	float bhRadiusSim;
 
     void initUBO();
     void initBlackHoleUBO();
     void initRenderTexture();
+    void initBloomTextures();
 };
 
 struct BlackHoleUBO {

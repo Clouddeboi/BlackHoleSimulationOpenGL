@@ -29,10 +29,12 @@
     <ClCompile Include="src\renderer.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="bloomExtract.frag" />
     <None Include="shaders\blackHole\shader.frag" />
     <None Include="shaders\blackHole\shader.vert" />
     <None Include="shaders\blit.frag" />
     <None Include="shaders\blit.vert" />
+    <None Include="shaders\bloomBlur.frag" />
     <None Include="shaders\geodesic.comp" />
     <None Include="shaders\grid\shader.frag" />
     <None Include="shaders\grid\shader.vert" />

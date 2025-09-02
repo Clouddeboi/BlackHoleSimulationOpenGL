@@ -1,11 +1,12 @@
 #version 430 core
-
-out vec4 FragColor;
-
 in vec2 TexCoords;
-
+out vec4 FragColor;
 uniform sampler2D uRenderTex;
+uniform sampler2D uBloomTex;
+uniform float uBloomStrength; // e.g. 0.7
 
 void main() {
-    FragColor = texture(uRenderTex, TexCoords);
+    vec3 scene = texture(uRenderTex, TexCoords).rgb;
+    vec3 bloom = texture(uBloomTex, TexCoords).rgb;
+    FragColor = vec4(scene + bloom * uBloomStrength, 1.0);
 }
