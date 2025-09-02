@@ -13,11 +13,13 @@ public:
     ~Renderer();
 
     void render(const Camera& camera);//called every frame
+    void toggleGrid() { m_showGrid = !m_showGrid; }
 
 private:
     int m_width, m_height;
 
     Grid3D* m_grid;
+    bool m_showGrid = true;
 
     void initFullscreenQuad();
     void initShaders();

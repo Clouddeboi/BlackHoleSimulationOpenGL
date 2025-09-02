@@ -29,7 +29,6 @@
     <ClCompile Include="src\renderer.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="shaders\accretionDisk.frag" />
     <None Include="shaders\blackHole\shader.frag" />
     <None Include="shaders\blackHole\shader.vert" />
     <None Include="shaders\blit.frag" />

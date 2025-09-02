@@ -82,6 +82,16 @@ void App::processInput() {
     if (glfwGetKey(m_window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         glfwSetWindowShouldClose(m_window, true);
     }
+    static bool gridKeyPressed = false;
+    if (glfwGetKey(m_window, GLFW_KEY_G) == GLFW_PRESS) {
+        if (!gridKeyPressed) {
+            m_renderer->toggleGrid();
+            gridKeyPressed = true;
+        }
+    }
+    else {
+        gridKeyPressed = false;
+    }
 }
 
 //----------------- Run -----------------

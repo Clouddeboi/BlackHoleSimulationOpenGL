@@ -89,7 +89,6 @@ Renderer::~Renderer() {
     glDeleteBuffers(1, &m_quadVBO);
     glDeleteBuffers(1, &m_blackHoleUBO);
     delete m_grid;
-    //delete m_disk;
 }
 
 void Renderer::initUBO() {
@@ -226,9 +225,10 @@ void Renderer::render(const Camera& camera) {
     glBindVertexArray(m_quadVAO);
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
-    // Draw the 3D grid
-    m_grid->draw(camera.getViewMatrix(), camera.getProjectionMatrix());
-    //m_disk->draw(camera.getViewMatrix(), camera.getProjectionMatrix());
+    //Draw the 3D grid only if draw grid is true
+    if (m_showGrid) {
+        m_grid->draw(camera.getViewMatrix(), camera.getProjectionMatrix());
+    }
 }
 
 void Renderer::initRenderTexture() {

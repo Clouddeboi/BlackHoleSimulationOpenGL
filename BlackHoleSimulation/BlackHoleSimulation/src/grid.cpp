@@ -34,24 +34,30 @@ static GLuint compileShader(GLenum type, const std::string& src) {
 Grid3D::Grid3D(float min, float max, float spacing, float bhRadius)
     : m_vao(0), m_vbo(0), m_vertexCount(0), m_shaderProgram(0)
 {
-    //Make the well depth and width proportional to the black hole radius
-    float wellDepth = bhRadius * 1.0f;
-    float sigma = bhRadius * 2.5f;//controls the width of the well
+    //More physical well
+    //y = -wellDepth / r (Newtonian/Schwarzschild-like)
+    float wellDepth = bhRadius * 5.0f;
 
     std::vector<glm::vec3> vertices;
 
+    //X lines (varying x, fixed z)
     for (float x = min; x <= max; x += spacing) {
         for (float z = min; z < max; z += spacing) {
-            float y1 = -wellDepth * std::exp(-(x * x + z * z) / (2.0f * sigma * sigma));
-            float y2 = -wellDepth * std::exp(-(x * x + (z + spacing) * (z + spacing)) / (2.0f * sigma * sigma));
+            float r1 = sqrt(x * x + z * z);
+            float r2 = sqrt(x * x + (z + spacing) * (z + spacing));
+            float y1 = (r1 > 0.01f) ? -wellDepth / r1 : -wellDepth * 100.0f;
+            float y2 = (r2 > 0.01f) ? -wellDepth / r2 : -wellDepth * 100.0f;
             vertices.push_back({ x, y1, z });
             vertices.push_back({ x, y2, z + spacing });
         }
     }
+    //Z lines (varying z, fixed x)
     for (float z = min; z <= max; z += spacing) {
         for (float x = min; x < max; x += spacing) {
-            float y1 = -wellDepth * std::exp(-(x * x + z * z) / (2.0f * sigma * sigma));
-            float y2 = -wellDepth * std::exp(-((x + spacing) * (x + spacing) + z * z) / (2.0f * sigma * sigma));
+            float r1 = sqrt(x * x + z * z);
+            float r2 = sqrt((x + spacing) * (x + spacing) + z * z);
+            float y1 = (r1 > 0.01f) ? -wellDepth / r1 : -wellDepth * 100.0f;
+            float y2 = (r2 > 0.01f) ? -wellDepth / r2 : -wellDepth * 100.0f;
             vertices.push_back({ x, y1, z });
             vertices.push_back({ x + spacing, y2, z });
         }
@@ -100,6 +106,7 @@ void Grid3D::initShader() {
 
 void Grid3D::draw(const glm::mat4& view, const glm::mat4& proj) {
     glUseProgram(m_shaderProgram);
+    glUniform3f(glGetUniformLocation(m_shaderProgram, "uGridColor"), 0.0f, 0.0f, 0.0f);
     glUniformMatrix4fv(glGetUniformLocation(m_shaderProgram, "uView"), 1, GL_FALSE, &view[0][0]);
     glUniformMatrix4fv(glGetUniformLocation(m_shaderProgram, "uProj"), 1, GL_FALSE, &proj[0][0]);
     glBindVertexArray(m_vao);
