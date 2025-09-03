@@ -18,7 +18,7 @@ App::App(int width, int height, const std::string& title)
     initGLFW();
     initGLAD();
 
-    m_camera = new Camera(60.0f, (float)m_width / m_height, 0.1f, 100.0f);
+    m_camera = new Camera(60.0f, (float)m_width / m_height, 0.1f, 10000.0f);
     m_renderer = new Renderer(m_width, m_height);
 
     //Hook mouse callback

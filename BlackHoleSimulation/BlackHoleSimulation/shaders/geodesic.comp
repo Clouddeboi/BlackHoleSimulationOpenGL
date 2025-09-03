@@ -23,6 +23,13 @@ layout(std140, binding = 2) uniform DiskBlock {
     vec3 diskColor;
 };
 
+layout(std140, binding = 3) uniform PlanetBlock {
+    vec3 planetPosition;
+    float planetRadius;
+    vec3 planetColor;
+    float _pad;
+};
+
 // Schwarzschild "acceleration" for photon (approximate, for visualization)
 vec3 schwarzschildAccel(vec3 pos, float rs) {
     float r = length(pos);
@@ -66,8 +73,8 @@ void main() {
     vec3 rayOrigin = camPos.xyz;
 
     // Lensing integration parameters
-    const int MAX_STEPS = 1000;
-    const float STEP_SIZE = 0.05;
+    const int MAX_STEPS = 2000;
+    const float STEP_SIZE = 0.5;
 
     vec3 pos = rayOrigin;
     vec3 dir = rayDir;
@@ -82,7 +89,8 @@ void main() {
     int diskHits = 0;
     vec3 diskAccum = vec3(0.0);
 
-    for (int i = 0; i < MAX_STEPS; ++i) {
+    for (int i = 0; i < MAX_STEPS; ++i) 
+    {
         float r = length(pos);
 
         // Event horizon check
@@ -116,22 +124,76 @@ void main() {
 
                 // --- Gravitational Redshift ---
                 float rs = bhRadius;
-                float gRedshift = sqrt(1.0 - rs / diskR); // 0 (at horizon) to 1 (far away)
-                // Shift color toward red and dim as you approach the event horizon
+                float gRedshift = sqrt(1.0 - rs / diskR);
                 diskCol = mix(vec3(diskCol.r, 0.0, 0.0), diskCol, gRedshift);
-                diskCol *= 2.5;
+
+                // --- Lambertian Shading ---
+                vec3 normal = vec3(0.0, 1.0, 0.0);
+                vec3 lightDir = normalize(vec3(0.3, 1.0, 0.3)); // angled light
+                float diffuse = max(dot(normal, lightDir), 0.0);
+
+                // --- Black Hole Shadow on Disk (Analytical, limited to disk) ---
+                vec3 shadowOrigin = pos + 0.01 * lightDir;
+                vec3 oc = shadowOrigin - bhPosition;
+                float b = dot(oc, lightDir);
+                float c = dot(oc, oc) - bhRadius * bhRadius;
+                float discriminant = b * b - c;
+                bool inShadow = false;
+                float maxShadowDistance = 30.0;
+                if (discriminant > 0.0) {
+                    float t = -b - sqrt(discriminant);
+                    if (t > 0.0 && t < maxShadowDistance) {
+                        vec3 shadowHit = shadowOrigin + t * lightDir;
+                        float shadowDiskR = length(shadowHit.xz);
+                        // Only shadow if intersection is within the disk region
+                        if (abs(shadowHit.y) < STEP_SIZE &&
+                            shadowDiskR > diskInnerRadius && shadowDiskR < diskOuterRadius) {
+                            inShadow = true;
+                        }
+                    }
+                }
+                float shadowFactor = inShadow ? 0.05 : 1.0;
+
+                // Escape condition (sky)
+                if (r > 100.0) {
+                    break;
+                }
+
+                // --- Specular Highlight ---
+                vec3 viewDir = normalize(rayOrigin - pos);
+                vec3 halfDir = normalize(lightDir + viewDir);
+                float spec = pow(max(dot(normal, halfDir), 0.0), 32.0);
+                spec = min(spec, 1.0);
+
+                // --- Combine Shading ---
+                diskCol *= (0.3 + 0.7 * diffuse) * shadowFactor;
+                diskCol += vec3(1.0, 0.9, 0.7) * spec * 0.2 * shadowFactor;
+
+                // --- Bloom Boost ---
+                diskCol *= 1.5;
 
                 // Accumulate disk color, dimmer for higher-order images
-                float weight = pow(0.5, float(diskHits)); // Each subsequent image is dimmer
+                float weight = pow(0.5, float(diskHits));
                 diskAccum += diskCol * weight;
                 diskHits++;
-
-                // Do NOT break; allow for multiple disk images
+            }      
             }
+            // Sphere intersection (what you want)
+            float distToPlanet = length(pos - planetPosition);
+            if (distToPlanet < planetRadius) {
+                // Simple Lambertian shading for the planet sphere
+                vec3 normal = normalize(pos - planetPosition);
+                vec3 lightDir = normalize(vec3(0.3, 1.0, 0.3));
+                float diffuse = max(dot(normal, lightDir), 0.0);
+                vec3 planetCol = planetColor * (0.3 + 0.7 * diffuse);
+
+                color = planetCol;
+                hit = true;
+                break;
         }
 
         // Escape condition (sky)
-        if (r > 100.0) {
+        if (r > 3000.0) {
             break;
         }
 

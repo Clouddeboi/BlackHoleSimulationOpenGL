@@ -7,7 +7,7 @@
 
 //----------------- Constructor -----------------
 Camera::Camera(float fov, float aspect, float nearPlane, float farPlane)
-    : m_position(30.0f, 0.0f, 3.0f),
+    : m_position(0.0f, 0.0f, 30.0f),
     m_front(0.0f, 0.0f, -1.0f),
     m_up(0.0f, 1.0f, 0.0f),
     m_yaw(-90.0f), m_pitch(0.0f),

@@ -56,6 +56,13 @@ Renderer::Renderer(int width, int height)
     glBindBufferBase(GL_UNIFORM_BUFFER, 2, m_diskUBO);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
+    //Planet UBO
+    glGenBuffers(1, &m_planetUBO);
+    glBindBuffer(GL_UNIFORM_BUFFER, m_planetUBO);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(PlanetBlock), nullptr, GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_UNIFORM_BUFFER, 3, m_planetUBO);//binding = 3
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
     //Schwarzschild radius calculation for a real black hole
     //Physical constants:
     constexpr double G = 6.67430e-11;//Gravitational constant (m^3 kg^-1 s^-2)
@@ -208,6 +215,16 @@ void Renderer::render(const Camera& camera) {
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(DiskBlock), &diskBlock);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
+    PlanetBlock planetBlock;
+    planetBlock.planetPosition = glm::vec3(0.0f, 0.0f, -80.0f);
+    planetBlock.planetRadius = 2.0f;
+    planetBlock.planetColor = glm::vec3(0.2f, 0.5f, 1.0f);
+    planetBlock._pad = 0.0f;
+
+    glBindBuffer(GL_UNIFORM_BUFFER, m_planetUBO);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(PlanetBlock), &planetBlock);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
     //--- Compute Shader Pass ---
     glUseProgram(m_computeShader);
     GLuint blockIndex = glGetUniformBlockIndex(m_computeShader, "CameraBlock");
@@ -215,6 +232,14 @@ void Renderer::render(const Camera& camera) {
         glUniformBlockBinding(m_computeShader, blockIndex, 0);
     }
     glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_cameraUBO);
+
+    //std::cout << "bhRadiusSim: " << bhRadiusSim << std::endl;
+    //std::cout << "diskInnerRadius: " << diskBlock.diskInnerRadius << std::endl;
+    //std::cout << "diskOuterRadius: " << diskBlock.diskOuterRadius << std::endl;
+
+    glBindBuffer(GL_UNIFORM_BUFFER, m_planetUBO);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(PlanetBlock), &planetBlock);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
     //Update Black Hole UBO
     BlackHoleUBO bhData;
@@ -230,6 +255,12 @@ void Renderer::render(const Camera& camera) {
         glUniformBlockBinding(m_computeShader, bhBlockIndex, 1);
     }
     glBindBufferBase(GL_UNIFORM_BUFFER, 1, m_blackHoleUBO);
+
+    GLuint planetBlockIndex = glGetUniformBlockIndex(m_computeShader, "PlanetBlock");
+    if (planetBlockIndex != GL_INVALID_INDEX) {
+        glUniformBlockBinding(m_computeShader, planetBlockIndex, 3);
+    }
+    glBindBufferBase(GL_UNIFORM_BUFFER, 3, m_planetUBO);
 
     glBindImageTexture(0, m_renderTex, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
 
