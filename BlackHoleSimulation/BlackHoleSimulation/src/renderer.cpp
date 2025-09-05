@@ -277,7 +277,7 @@ void Renderer::render(const Camera& camera) {
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, m_renderTex);
     glUniform1i(glGetUniformLocation(m_bloomExtractShader, "uRenderTex"), 0);
-    glUniform1f(glGetUniformLocation(m_bloomExtractShader, "uThreshold"), 0.7f);
+    glUniform1f(glGetUniformLocation(m_bloomExtractShader, "uThreshold"), 0.1f);
     glBindVertexArray(m_quadVAO);
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
@@ -308,7 +308,7 @@ void Renderer::render(const Camera& camera) {
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, m_bloomBlurTex[!horizontal]);
     glUniform1i(glGetUniformLocation(m_shaderProgram, "uBloomTex"), 1);
-    glUniform1f(glGetUniformLocation(m_shaderProgram, "uBloomStrength"), 1.0f);
+    glUniform1f(glGetUniformLocation(m_shaderProgram, "uBloomStrength"), 0.0f);
     glBindVertexArray(m_quadVAO);
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
