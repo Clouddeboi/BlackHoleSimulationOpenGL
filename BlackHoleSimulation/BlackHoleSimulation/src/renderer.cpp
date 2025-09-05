@@ -7,6 +7,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <GLFW/glfw3.h>
 
 //Utility function to load shaders
 static std::string loadFile(const std::string& path) {
@@ -61,6 +62,13 @@ Renderer::Renderer(int width, int height)
     glBindBuffer(GL_UNIFORM_BUFFER, m_planetUBO);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(PlanetBlock), nullptr, GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_UNIFORM_BUFFER, 3, m_planetUBO);//binding = 3
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+    //Time UBO (for animation)
+    glGenBuffers(1, &m_timeUBO);
+    glBindBuffer(GL_UNIFORM_BUFFER, m_timeUBO);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(float), nullptr, GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_UNIFORM_BUFFER, 4, m_timeUBO);//binding = 4
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
     //Schwarzschild radius calculation for a real black hole
@@ -199,6 +207,11 @@ void Renderer::initShaders() {
 
 //----------------- Render -----------------
 void Renderer::render(const Camera& camera) {
+    float time = static_cast<float>(glfwGetTime());
+    glBindBuffer(GL_UNIFORM_BUFFER, m_timeUBO);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(float), &time);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
     //Update Camera UBO
     CameraUBO data = camera.getUBO();
     glBindBuffer(GL_UNIFORM_BUFFER, m_cameraUBO);
