@@ -88,6 +88,37 @@ Renderer::Renderer(int width, int height)
     glBindTexture(GL_TEXTURE_2D, 0);
     stbi_image_free(data);
 
+    //Cubemap face order: +X, -X, +Y, -Y, +Z, -Z
+    std::vector<std::string> faces = {
+        "textures/skybox/right.png",
+        "textures/skybox/left.png",
+        "textures/skybox/top.png",
+        "textures/skybox/bottom.png",
+        "textures/skybox/front.png",
+        "textures/skybox/back.png"
+    };
+
+    glGenTextures(1, &m_skyboxTex);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, m_skyboxTex);
+
+    int nrChannels;
+    for (GLuint i = 0; i < faces.size(); i++) {
+        unsigned char* data = stbi_load(faces[i].c_str(), &width, &height, &nrChannels, 3);
+        if (data) {
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+            stbi_image_free(data);
+        }
+        else {
+            throw std::runtime_error("Cubemap texture failed to load at path: " + faces[i]);
+        }
+    }
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+
     //Schwarzschild radius calculation for a real black hole
     //Physical constants:
     constexpr double G = 6.67430e-11;//Gravitational constant (m^3 kg^-1 s^-2)
@@ -258,6 +289,10 @@ void Renderer::render(const Camera& camera) {
     glActiveTexture(GL_TEXTURE5);//Use texture unit 5
     glBindTexture(GL_TEXTURE_2D, m_smokeTex);
     glUniform1i(glGetUniformLocation(m_computeShader, "uSmokeTex"), 5);
+
+    glActiveTexture(GL_TEXTURE6); // Use texture unit 6
+    glBindTexture(GL_TEXTURE_CUBE_MAP, m_skyboxTex);
+    glUniform1i(glGetUniformLocation(m_computeShader, "uSkybox"), 6);
 
     //--- Compute Shader Pass ---
     glUseProgram(m_computeShader);

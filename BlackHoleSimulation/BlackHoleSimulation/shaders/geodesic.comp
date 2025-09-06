@@ -52,6 +52,8 @@ float noise(vec2 x) {
 
 layout(binding = 5) uniform sampler2D uSmokeTex;
 
+layout(binding = 6) uniform samplerCube uSkybox;
+
 // Schwarzschild "acceleration" for photon (approximate, for visualization)
 vec3 schwarzschildAccel(vec3 pos, float rs) {
     float r = length(pos);
@@ -284,17 +286,22 @@ void main() {
         hit = true;
     }
 
-    if (!hit) {
-        // Space-like gradient: deep blue to purple
-        float tSky = 0.5 * (dir.y + 1.0);
-        vec3 topColor = vec3(0.08, 0.10, 0.18);   // deep blue
-        vec3 bottomColor = vec3(0.02, 0.01, 0.05); // almost black
-        color = mix(bottomColor, topColor, pow(tSky, 0.7));
+        if (!hit) {
+            vec3 lensedDir = normalize(dir); // after lensing integration
+            vec3 skyColor = texture(uSkybox, lensedDir).rgb;
 
-        // --- Photon Sphere Highlight (only for escaping rays) ---
-        if (nearPhotonSphere) {
-            color = mix(color, vec3(5.0, 5.0, 1.5), 0.2);
-        }
+            //Apply gravitational redshift/time dilation
+            float rEscape = length(pos);
+            float rs = bhRadius;
+            float gRedshift = sqrt(clamp(1.0 - rs / rEscape, 0.0, 1.0));
+            skyColor = mix(vec3(skyColor.r, 0.0, 0.0), skyColor, gRedshift);
+
+            color = skyColor;
+
+            // --- Photon Sphere Highlight (only for escaping rays) ---
+            if (nearPhotonSphere) {
+                color = mix(color, vec3(5.0, 5.0, 1.5), 0.2);
+            }
     }
 
     imageStore(destTex, pixelCoords, vec4(color, 1.0));
