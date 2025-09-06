@@ -3,6 +3,8 @@
 #include "../headers/camera.hpp"
 #include "../headers/grid.hpp"
 #include <glad/glad.h>
+#include <vector>
+#include <string>
 
 //Forward declaration
 class App;
@@ -12,8 +14,9 @@ public:
     Renderer(int width, int height);
     ~Renderer();
 
-    void render(const Camera& camera);//called every frame
+    void render(const Camera& camera, float fps);//called every frame
     void toggleGrid() { m_showGrid = !m_showGrid; }
+    void renderDebugText(const std::vector<std::string>& lines);
 
 private:
     int m_width, m_height;
@@ -40,11 +43,15 @@ private:
     GLuint m_smokeTex = 0;
 	GLuint m_skyboxTex = 0;
 
+    GLuint m_debugTextShader = 0;
+    GLuint m_debugTextVBO = 0, m_debugTextVAO = 0;
+
     GLuint m_bloomExtractTex = 0, m_bloomBlurTex[2] = { 0, 0 };
     GLuint m_bloomExtractFBO = 0, m_bloomBlurFBO[2] = { 0, 0 };
     GLuint m_bloomExtractShader = 0, m_bloomBlurShader = 0;
 
 	float bhRadiusSim;
+    double m_bhMass;
 
     void initUBO();
     void initBlackHoleUBO();

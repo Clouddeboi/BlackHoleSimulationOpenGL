@@ -40,6 +40,9 @@
     <Filter Include="textures\smoke">
       <UniqueIdentifier>{558250d3-82b0-4048-ae2a-0fb93edb0f93}</UniqueIdentifier>
     </Filter>
+    <Filter Include="shaders\debugText">
+      <UniqueIdentifier>{a6624169-f167-4c4a-b394-ca0b168476be}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -107,6 +110,12 @@
     <None Include="shaders\bloomBlur.frag">
       <Filter>shaders</Filter>
     </None>
+    <None Include="shaders\debugText\text.frag">
+      <Filter>shaders\debugText</Filter>
+    </None>
+    <None Include="shaders\debugText\text.vert">
+      <Filter>shaders\debugText</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Image Include="textures\skybox\left.png">
@@ -157,6 +166,9 @@
       <Filter>headers</Filter>
     </ClInclude>
     <ClInclude Include="include\glad\glad.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\stb_easy_font.h">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>

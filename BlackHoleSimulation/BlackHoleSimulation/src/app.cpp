@@ -102,6 +102,8 @@ void App::run() {
         float deltaTime = currentFrame - m_lastFrame;
         m_lastFrame = currentFrame;
 
+        float fps = 1.0f / deltaTime;
+
         m_camera->update(deltaTime);
 
         //Render: clear screen
@@ -109,7 +111,7 @@ void App::run() {
         glClearColor(0.1f, 0.0f, 0.2f, 1.0f);//Dark purple background
         glClear(GL_COLOR_BUFFER_BIT);
 
-        m_renderer->render(*m_camera);
+        m_renderer->render(*m_camera, fps);
 
         //Swap
         glfwSwapBuffers(m_window);

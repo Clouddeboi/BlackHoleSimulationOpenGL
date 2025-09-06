@@ -10,6 +10,7 @@
 #include <sstream>
 #include <GLFW/glfw3.h>
 #include <stb_image.h>
+#include "stb_easy_font.h"
 
 //Utility function to load shaders
 static std::string loadFile(const std::string& path) {
@@ -126,7 +127,7 @@ Renderer::Renderer(int width, int height)
     constexpr double solarMass = 1.98847e30;//Mass of the sun (kg)
 
 	//Black hole mass (in kg) (10 solar masses)
-    double mass = 5.0 * solarMass;
+    m_bhMass = 5.0 * solarMass;
 
     //Schwarzschild radius formula:
     //r_s = 2 * G * M / c^2
@@ -134,7 +135,7 @@ Renderer::Renderer(int width, int height)
     //- G: gravitational constant
     //- M: black hole mass (kg)
     //- c: speed of light (m/s)
-    double rs_meters = 2.0 * G * mass / (c * c);
+    double rs_meters = 2.0 * G * m_bhMass / (c * c);
 
     //Simulation scale factor to convert meters to simulation units
     double scale = 0.0001016;
@@ -223,6 +224,28 @@ void Renderer::initShaders() {
         throw std::runtime_error("Shader linking error: " + std::string(info));
     }
 
+    //Load and compile debug text shaders
+    std::string textVertSrc = loadFile("shaders/debugtext/text.vert");
+    std::string textFragSrc = loadFile("shaders/debugtext/text.frag");
+    GLuint textVert = compileShader(GL_VERTEX_SHADER, textVertSrc);
+    GLuint textFrag = compileShader(GL_FRAGMENT_SHADER, textFragSrc);
+    m_debugTextShader = glCreateProgram();
+    glAttachShader(m_debugTextShader, textVert);
+    glAttachShader(m_debugTextShader, textFrag);
+    glLinkProgram(m_debugTextShader);
+    glDeleteShader(textVert);
+    glDeleteShader(textFrag);
+
+    //Create VAO/VBO for text
+    glGenVertexArrays(1, &m_debugTextVAO);
+    glGenBuffers(1, &m_debugTextVBO);
+    glBindVertexArray(m_debugTextVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_debugTextVBO);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 16, (void*)0);
+    glEnableVertexAttribArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
     //Bloom extract shader
     std::string extractFrag = loadFile("shaders/bloomExtract.frag");
     m_bloomExtractShader = glCreateProgram();
@@ -254,7 +277,7 @@ void Renderer::initShaders() {
 }
 
 //----------------- Render -----------------
-void Renderer::render(const Camera& camera) {
+void Renderer::render(const Camera& camera, float fps) {
     float time = static_cast<float>(glfwGetTime());
     glBindBuffer(GL_UNIFORM_BUFFER, m_timeUBO);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(float), &time);
@@ -290,9 +313,20 @@ void Renderer::render(const Camera& camera) {
     glBindTexture(GL_TEXTURE_2D, m_smokeTex);
     glUniform1i(glGetUniformLocation(m_computeShader, "uSmokeTex"), 5);
 
-    glActiveTexture(GL_TEXTURE6); // Use texture unit 6
+    glActiveTexture(GL_TEXTURE6); //Use texture unit 6
     glBindTexture(GL_TEXTURE_CUBE_MAP, m_skyboxTex);
     glUniform1i(glGetUniformLocation(m_computeShader, "uSkybox"), 6);
+
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    std::vector<std::string> debugLines;
+    glm::vec3 camPos = camera.getPosition();
+    debugLines.push_back("Camera: (" + std::to_string(camPos.x) + ", " + std::to_string(camPos.y) + ", " + std::to_string(camPos.z) + ")");
+    debugLines.push_back("Black Hole Radius: " + std::to_string(bhRadiusSim));
+    debugLines.push_back("Black Hole Mass: " + std::to_string(m_bhMass) + " kg");
+    debugLines.push_back("FPS: " + std::to_string(fps));
 
     //--- Compute Shader Pass ---
     glUseProgram(m_computeShader);
@@ -385,6 +419,8 @@ void Renderer::render(const Camera& camera) {
     if (m_showGrid) {
         m_grid->draw(camera.getViewMatrix(), camera.getProjectionMatrix());
     }
+
+    renderDebugText(debugLines);
 }
 
 void Renderer::initRenderTexture() {
@@ -425,4 +461,43 @@ void Renderer::initBloomTextures() {
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_bloomBlurTex[i], 0);
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void Renderer::renderDebugText(const std::vector<std::string>& lines) {
+    float x = 10.0f, y = 30.0f;
+    char buffer[99999];
+    std::vector<float> vertices;
+
+    for (const auto& line : lines) {
+        int quads = stb_easy_font_print(x, y, (char*)line.c_str(), NULL, buffer, sizeof(buffer));
+        float* buf = (float*)buffer;
+        for (int i = 0; i < quads * 4; ++i) {
+            vertices.push_back(buf[i * 4 + 0]);
+            vertices.push_back(buf[i * 4 + 1]);
+        }
+        y += 20.0f;
+    }
+
+    if (vertices.empty()) return;
+
+    glm::mat4 ortho = glm::ortho(0.0f, float(m_width), float(m_height), 0.0f);
+
+    glUseProgram(m_debugTextShader);
+    glUniformMatrix4fv(glGetUniformLocation(m_debugTextShader, "uOrtho"), 1, GL_FALSE, &ortho[0][0]);
+    glUniform3f(glGetUniformLocation(m_debugTextShader, "uColor"), 1.0f, 1.0f, 0.0f);
+
+    glBindVertexArray(m_debugTextVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_debugTextVBO);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    //Draw each quad as a triangle fan
+    for (size_t i = 0; i < vertices.size() / 2; i += 4) {
+        glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 8, &vertices[i * 2], GL_DYNAMIC_DRAW);
+        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+    }
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+    glUseProgram(0);
 }

@@ -35,6 +35,8 @@
     <None Include="shaders\blit.frag" />
     <None Include="shaders\blit.vert" />
     <None Include="shaders\bloomBlur.frag" />
+    <None Include="shaders\debugText\text.frag" />
+    <None Include="shaders\debugText\text.vert" />
     <None Include="shaders\geodesic.comp" />
     <None Include="shaders\grid\shader.frag" />
     <None Include="shaders\grid\shader.vert" />
@@ -61,6 +63,7 @@
     <ClInclude Include="headers\renderer.hpp" />
     <ClInclude Include="include\glad\glad.h" />
     <ClInclude Include="include\KHR\khrplatform.h" />
+    <ClInclude Include="include\stb_easy_font.h" />
     <ClInclude Include="include\stb_image.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
