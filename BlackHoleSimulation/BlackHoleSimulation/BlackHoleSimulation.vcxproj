@@ -50,6 +50,7 @@
     <Image Include="textures\skybox\right.png" />
     <Image Include="textures\skybox\front.png" />
     <Image Include="textures\skybox\bottom.png" />
+    <Image Include="textures\smoke\smoke_01.png" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="headers\app.hpp" />

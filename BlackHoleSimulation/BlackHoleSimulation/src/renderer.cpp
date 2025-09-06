@@ -1,5 +1,6 @@
 //Rendering
 
+#define STB_IMAGE_IMPLEMENTATION
 #include "../headers/renderer.hpp"
 #include "../headers/glHelpers.hpp"
 #include <glad/glad.h>
@@ -8,6 +9,7 @@
 #include <fstream>
 #include <sstream>
 #include <GLFW/glfw3.h>
+#include <stb_image.h>
 
 //Utility function to load shaders
 static std::string loadFile(const std::string& path) {
@@ -70,6 +72,21 @@ Renderer::Renderer(int width, int height)
     glBufferData(GL_UNIFORM_BUFFER, sizeof(float), nullptr, GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_UNIFORM_BUFFER, 4, m_timeUBO);//binding = 4
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+    int texWidth, texHeight, texChannels;
+    unsigned char* data = stbi_load("textures/smoke/smoke_01.png", &texWidth, &texHeight, &texChannels, 4);//force RGBA
+    if (!data) {
+        throw std::runtime_error("Failed to load smoke texture!");
+    }
+    glGenTextures(1, &m_smokeTex);
+    glBindTexture(GL_TEXTURE_2D, m_smokeTex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, texWidth, texHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    stbi_image_free(data);
 
     //Schwarzschild radius calculation for a real black hole
     //Physical constants:
@@ -237,6 +254,10 @@ void Renderer::render(const Camera& camera) {
     glBindBuffer(GL_UNIFORM_BUFFER, m_planetUBO);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(PlanetBlock), &planetBlock);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+    glActiveTexture(GL_TEXTURE5);//Use texture unit 5
+    glBindTexture(GL_TEXTURE_2D, m_smokeTex);
+    glUniform1i(glGetUniformLocation(m_computeShader, "uSmokeTex"), 5);
 
     //--- Compute Shader Pass ---
     glUseProgram(m_computeShader);

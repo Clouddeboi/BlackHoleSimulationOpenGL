@@ -37,6 +37,9 @@
     <Filter Include="headers">
       <UniqueIdentifier>{03cb69b5-f31c-4e9b-a6d7-247f85d685b2}</UniqueIdentifier>
     </Filter>
+    <Filter Include="textures\smoke">
+      <UniqueIdentifier>{558250d3-82b0-4048-ae2a-0fb93edb0f93}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -123,6 +126,9 @@
     </Image>
     <Image Include="textures\skybox\bottom.png">
       <Filter>textures\skybox</Filter>
+    </Image>
+    <Image Include="textures\smoke\smoke_01.png">
+      <Filter>textures\smoke</Filter>
     </Image>
   </ItemGroup>
   <ItemGroup>

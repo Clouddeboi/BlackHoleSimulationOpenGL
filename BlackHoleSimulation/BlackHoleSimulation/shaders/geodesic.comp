@@ -34,6 +34,24 @@ layout(std140, binding = 4) uniform TimeBlock {
     float uTime;
 };
 
+float hash(float n) {
+    return fract(sin(n) * 43758.5453);
+}
+
+float noise(vec2 x) {
+    vec2 p = floor(x);
+    vec2 f = fract(x);
+    f = f * f * (3.0 - 2.0 * f);
+    float n = p.x + p.y * 57.0;
+    return mix(
+        mix(hash(n + 0.0), hash(n + 1.0), f.x),
+        mix(hash(n + 57.0), hash(n + 58.0), f.x),
+        f.y
+    );
+}
+
+layout(binding = 5) uniform sampler2D uSmokeTex;
+
 // Schwarzschild "acceleration" for photon (approximate, for visualization)
 vec3 schwarzschildAccel(vec3 pos, float rs) {
     float r = length(pos);
@@ -126,15 +144,53 @@ void main() {
                 float gamma = 1.0 / sqrt(1.0 - beta * beta);
                 float D = gamma * (1.0 - beta * cosTheta);
 
-                float phi = atan(pos.x, pos.z) + uTime * 1.0; // 1.0 = rotation speed (radians/sec)
-                vec3 innerColor = vec3(0.7, 0.85, 1.0);
-                vec3 outerColor = vec3(1.0, 0.4, 0.1);
+                // Disk local coordinates
+                float phi = atan(pos.x, pos.z) + uTime * 1.0;
                 float t = clamp((diskR - diskInnerRadius) / (diskOuterRadius - diskInnerRadius), 0.0, 1.0);
 
+                // --- Tiling parameters ---
+                const float tileCountU = 1.0; // Number of strips around the disk (angular)
+                const float tileCountV = 1.0; // Number of tiles from inner to outer edge (radial)
+
+                // --- Compute base tile coordinates ---
+                float baseU = phi / (2.0 * 3.14159265); // [-0.5, 0.5]
+                baseU = baseU - floor(baseU);           // [0,1)
+                float baseV = t;                        // [0,1]
+
+                // --- Which tile are we in? ---
+                float tileIdxU = floor(baseU * tileCountU);
+                float tileIdxV = floor(baseV * tileCountV);
+
+                // --- Random offset for this tile (using hash) ---
+                float tileRandU = hash(tileIdxU + tileIdxV * 100.0);
+                float tileRandV = hash(tileIdxV + tileIdxU * 100.0);
+
+                // --- Final tile-local coordinates, with random offset ---
+                const float margin = 0.08;
+                float texU = mix(margin, 1.0 - margin, baseU);
+                float texV = mix(margin, 1.0 - margin, baseV);
+
+                vec2 texCoords = vec2(texU, texV);
+
+                // Sample the texture
+                vec4 smokeSample = texture(uSmokeTex, texCoords);
+                float smoke = smokeSample.a; // or .r for grayscale
+
+                // Combine with procedural noise as before
+                float combined = mix(noise(texCoords * 8.0 + uTime * 0.1), smoke, 0.95);
+
+                // Height-based falloff for 3D "gas"
+                float heightFalloff = exp(-abs(pos.y) * 2.0);
+
+                //fade disk edges
+                float edgeFade = smoothstep(diskInnerRadius, diskInnerRadius + 0.5, diskR) *
+                                 (1.0 - smoothstep(diskOuterRadius - 0.5, diskOuterRadius, diskR));
+
+                // Final color
                 vec3 tempColor = mix(innerColor, outerColor, t);
-                float band = 0.5 + 0.5 * sin(8.0 * phi + 10.0 * t);
-                tempColor += 0.2 * band; // 0.2 controls band intensity, tweak as needed
+                tempColor += 0.25 * combined;
                 tempColor = clamp(tempColor, 0.0, 1.0);
+                tempColor *= heightFalloff * edgeFade;
 
                 vec3 baseColor = tempColor;
 
@@ -200,19 +256,19 @@ void main() {
                 diskAccum += diskCol * weight;
                 diskHits++;
             }      
-            }
-            // Sphere intersection (what you want)
-            float distToPlanet = length(pos - planetPosition);
-            if (distToPlanet < planetRadius) {
-                // Simple Lambertian shading for the planet sphere
-                vec3 normal = normalize(pos - planetPosition);
-                vec3 lightDir = normalize(vec3(0.3, 1.0, 0.3));
-                float diffuse = max(dot(normal, lightDir), 0.0);
-                vec3 planetCol = planetColor * (0.3 + 0.7 * diffuse);
+        }
+        // Sphere intersection
+        float distToPlanet = length(pos - planetPosition);
+        if (distToPlanet < planetRadius) {
+            // Simple Lambertian shading for the planet sphere
+            vec3 normal = normalize(pos - planetPosition);
+            vec3 lightDir = normalize(vec3(0.3, 1.0, 0.3));
+            float diffuse = max(dot(normal, lightDir), 0.0);
+            vec3 planetCol = planetColor * (0.3 + 0.7 * diffuse);
 
-                color = planetCol;
-                hit = true;
-                break;
+            color = planetCol;
+            hit = true;
+            break;
         }
 
         // Escape condition (sky)

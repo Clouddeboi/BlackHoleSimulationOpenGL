@@ -37,6 +37,7 @@ private:
     GLuint m_planetUBO;
 
     GLuint m_timeUBO;
+    GLuint m_smokeTex = 0;
 
     GLuint m_bloomExtractTex = 0, m_bloomBlurTex[2] = { 0, 0 };
     GLuint m_bloomExtractFBO = 0, m_bloomBlurFBO[2] = { 0, 0 };
