@@ -202,11 +202,11 @@ Renderer::Renderer(int width, int height)
     m_planets.push_back(earth);
 
     //Debug: print orbital period and orbits per sim minute
-    double T = 2.0 * M_PI / omega_earth;
-    double timeScale = 31557600.0 / 60.0;
-    double orbits_per_sim_minute = (timeScale * 60.0) / T;
-    std::cout << "Earth orbital period (s): " << T << std::endl;
-    std::cout << "Orbits per sim minute: " << orbits_per_sim_minute << std::endl;
+    //double T = 2.0 * M_PI / omega_earth;
+    //double timeScale = 31557600.0 / 60.0;
+    //double orbits_per_sim_minute = (timeScale * 60.0) / T;
+    //std::cout << "Earth orbital period (s): " << T << std::endl;
+    //std::cout << "Orbits per sim minute: " << orbits_per_sim_minute << std::endl;
 
     Planet mars;
     mars.position = glm::vec3(-15.0f, 0.0f, -90.0f);
@@ -416,12 +416,35 @@ void Renderer::render(const Camera& camera, float fps) {
 
     std::vector<std::string> debugLines;
     glm::vec3 camPos = camera.getPosition();
-    //debugLines.push_back("BLACK HOLE SIMULATION");
-    debugLines.push_back("Camera: (" + std::to_string(camPos.x) + ", " + std::to_string(camPos.y) + ", " + std::to_string(camPos.z) + ")");
-    debugLines.push_back("Black Hole Radius: " + std::to_string(bhRadiusSim));
-    debugLines.push_back("Black Hole Mass: " + std::to_string(m_bhMass) + " kg");
-    debugLines.push_back("FPS: " + std::to_string(fps));
-    debugLines.push_back("Simulation Scale Factor:" + std::to_string(scale));
+
+	std::string tab = "    ";
+
+    debugLines.push_back("Camera Info");
+    debugLines.push_back(tab + "Camera Position: (" + std::to_string(camPos.x) + ", " + std::to_string(camPos.y) + ", " + std::to_string(camPos.z) + ")");
+    debugLines.push_back(tab + "FPS: " + std::to_string(fps));
+    debugLines.push_back("\n");
+
+    debugLines.push_back("BlackHole Info");
+    debugLines.push_back(tab + "Black Hole Radius: " + std::to_string(bhRadiusSim));
+    debugLines.push_back(tab + "Black Hole Mass: " + std::to_string(m_bhMass) + " kg");
+    debugLines.push_back("\n");
+
+    debugLines.push_back("Simulation Info");
+    debugLines.push_back(tab + "Simulation Scale Factor:" + std::to_string(scale));
+    debugLines.push_back("\n");
+
+    debugLines.push_back("Planet Info");
+    if (!m_planets.empty()) {
+        const glm::vec3& earthPos = m_planets[0].position;
+        debugLines.push_back(tab + "Earth Position: (" + std::to_string(earthPos.x) + ", " + std::to_string(earthPos.y) + ", " + std::to_string(earthPos.z) + ")");
+
+        double omega_earth = m_planets[0].orbitSpeed;
+        if (omega_earth > 0.0) {
+            double T = 2.0 * M_PI / omega_earth;
+            double orbitCount = simTime / T;
+            debugLines.push_back(tab + "Earth Orbits: " + std::to_string(orbitCount));
+        }
+    }
 
     //Prepare planet data for SSBO
     struct PlanetDataGPU {
