@@ -46,6 +46,8 @@
     <None Include="shaders\skybox\skybox.vert" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="textures\planets\earthTexture.jpg" />
+    <Image Include="textures\planets\marsTexture.jpg" />
     <Image Include="textures\skybox\left.png" />
     <Image Include="textures\skybox\back.png" />
     <Image Include="textures\skybox\top.png" />

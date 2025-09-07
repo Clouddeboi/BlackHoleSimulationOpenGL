@@ -9,6 +9,21 @@
 //Forward declaration
 class App;
 
+struct PlanetBlock {
+    glm::vec3 planetPosition;
+    float planetRadius;
+    glm::vec3 planetColor;
+    float _pad;
+};
+
+struct Planet {
+    glm::vec3 position;
+    float radius;
+    glm::vec3 color;
+    GLuint texture;
+    std::string texturePath;
+};
+
 class Renderer {
 public:
     Renderer(int width, int height);
@@ -38,6 +53,8 @@ private:
     GLuint m_diskUBO;
 
     GLuint m_planetUBO;
+    GLuint m_planetSSBO = 0;
+    std::vector<Planet> m_planets;
 
     GLuint m_timeUBO;
     GLuint m_smokeTex = 0;
@@ -52,6 +69,7 @@ private:
 
 	float bhRadiusSim;
     double m_bhMass;
+    double scale;
 
     void initUBO();
     void initBlackHoleUBO();
@@ -62,13 +80,6 @@ private:
 struct BlackHoleUBO {
     glm::vec3 bhPosition;
     float bhRadius;
-};
-
-struct PlanetBlock {
-    glm::vec3 planetPosition;
-    float planetRadius;
-    glm::vec3 planetColor;
-    float _pad;
 };
 
 struct DiskBlock {

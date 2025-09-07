@@ -37,6 +37,23 @@ static unsigned int compileShader(unsigned int type, const std::string& src) {
     return shader;
 }
 
+//Utility to load a texture from file
+static GLuint loadTexture(const std::string& path) {
+    int width, height, channels;
+    unsigned char* data = stbi_load(path.c_str(), &width, &height, &channels, 4);
+    if (!data) throw std::runtime_error("Failed to load texture: " + path);
+
+    GLuint tex;
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    stbi_image_free(data);
+    return tex;
+}
+
 //----------------- Constructor -----------------
 Renderer::Renderer(int width, int height)
     : m_width(width), m_height(height), m_quadVAO(0), m_quadVBO(0), m_shaderProgram(0)
@@ -54,18 +71,36 @@ Renderer::Renderer(int width, int height)
     initUBO();
     initBlackHoleUBO();
 
+    glGenBuffers(1, &m_planetSSBO);
+
     glGenBuffers(1, &m_diskUBO);
     glBindBuffer(GL_UNIFORM_BUFFER, m_diskUBO);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(DiskBlock), nullptr, GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_UNIFORM_BUFFER, 2, m_diskUBO);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-    //Planet UBO
-    glGenBuffers(1, &m_planetUBO);
-    glBindBuffer(GL_UNIFORM_BUFFER, m_planetUBO);
-    glBufferData(GL_UNIFORM_BUFFER, sizeof(PlanetBlock), nullptr, GL_DYNAMIC_DRAW);
-    glBindBufferBase(GL_UNIFORM_BUFFER, 3, m_planetUBO);//binding = 3
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    for (size_t i = 0; i < m_planets.size(); ++i) {
+        const Planet& planet = m_planets[i];
+
+        //Set up UBO for this planet
+        PlanetBlock planetBlock;
+        planetBlock.planetPosition = planet.position;
+        planetBlock.planetRadius = planet.radius;
+        planetBlock.planetColor = planet.color;
+        planetBlock._pad = 0.0f;
+
+        glBindBuffer(GL_UNIFORM_BUFFER, m_planetUBO);
+        glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(PlanetBlock), &planetBlock);
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+        //Bind planet texture to a texture unit (e.g., 7 + i)
+        glActiveTexture(GL_TEXTURE7 + static_cast<GLenum>(i));
+        glBindTexture(GL_TEXTURE_2D, planet.texture);
+        glUniform1i(glGetUniformLocation(m_computeShader, "uPlanetTex"), 7 + static_cast<GLint>(i));
+
+        // Dispatch compute or draw call for this planet
+        // (You may need to update your compute shader to handle multiple planets and textures)
+    }
 
     //Time UBO (for animation)
     glGenBuffers(1, &m_timeUBO);
@@ -113,6 +148,7 @@ Renderer::Renderer(int width, int height)
             throw std::runtime_error("Cubemap texture failed to load at path: " + faces[i]);
         }
     }
+    
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -138,13 +174,30 @@ Renderer::Renderer(int width, int height)
     double rs_meters = 2.0 * G * m_bhMass / (c * c);
 
     //Simulation scale factor to convert meters to simulation units
-    double scale = 0.0001016;
+    scale = 0.0001016;
 
     //convert to simulation units
     bhRadiusSim = static_cast<float>(rs_meters * scale);
 
     //Setup grid
     m_grid = new Grid3D(-50.0f, 50.0f, 1.0f, bhRadiusSim);
+
+    //Planets Setup
+    Planet earth;
+    earth.position = glm::vec3(10.0f, 0.0f, -80.0f);
+    earth.radius = 6378.0f * scale;
+    earth.color = glm::vec3(1.0f);
+    earth.texturePath = "textures/planets/earthTexture.jpg";
+    earth.texture = loadTexture(earth.texturePath);
+    m_planets.push_back(earth);
+
+    Planet mars;
+    mars.position = glm::vec3(-15.0f, 0.0f, -90.0f);
+    mars.radius = 3389.5f * scale;
+    mars.color = glm::vec3(1.0f, 0.5f, 0.3f);
+    mars.texturePath = "textures/planets/marsTexture.jpg";
+    mars.texture = loadTexture(mars.texturePath);
+    m_planets.push_back(mars);
 }
 
 //----------------- Destructor -----------------
@@ -323,10 +376,42 @@ void Renderer::render(const Camera& camera, float fps) {
 
     std::vector<std::string> debugLines;
     glm::vec3 camPos = camera.getPosition();
+    //debugLines.push_back("BLACK HOLE SIMULATION");
     debugLines.push_back("Camera: (" + std::to_string(camPos.x) + ", " + std::to_string(camPos.y) + ", " + std::to_string(camPos.z) + ")");
     debugLines.push_back("Black Hole Radius: " + std::to_string(bhRadiusSim));
     debugLines.push_back("Black Hole Mass: " + std::to_string(m_bhMass) + " kg");
     debugLines.push_back("FPS: " + std::to_string(fps));
+    debugLines.push_back("Simulation Scale Factor:" + std::to_string(scale));
+
+    // Prepare planet data for SSBO
+    struct PlanetDataGPU {
+        glm::vec3 position;
+        float radius;
+        glm::vec3 color;
+        float _pad;
+    };
+    std::vector<PlanetDataGPU> planetData;
+    for (const auto& p : m_planets) {
+        PlanetDataGPU pd;
+        pd.position = p.position;
+        pd.radius = p.radius;
+        pd.color = p.color;
+        pd._pad = 0.0f;
+        planetData.push_back(pd);
+    }
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_planetSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, planetData.size() * sizeof(PlanetDataGPU), planetData.data(), GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, m_planetSSBO);
+
+    // Set uNumPlanets uniform
+    glUseProgram(m_computeShader);
+    glUniform1i(glGetUniformLocation(m_computeShader, "uNumPlanets"), static_cast<GLint>(m_planets.size()));
+
+    // Bind planet textures to units 10, 11, ...
+    for (size_t i = 0; i < m_planets.size(); ++i) {
+        glActiveTexture(GL_TEXTURE10 + static_cast<GLenum>(i));
+        glBindTexture(GL_TEXTURE_2D, m_planets[i].texture);
+    }
 
     //--- Compute Shader Pass ---
     glUseProgram(m_computeShader);
