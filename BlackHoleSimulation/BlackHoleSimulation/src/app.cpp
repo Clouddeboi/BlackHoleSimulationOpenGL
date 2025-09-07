@@ -92,6 +92,17 @@ void App::processInput() {
     else {
         gridKeyPressed = false;
     }
+
+    static bool debugKeyPressed = false;
+    if (glfwGetKey(m_window, GLFW_KEY_H) == GLFW_PRESS) {
+        if (!debugKeyPressed) {
+            m_renderer->toggleDebugText();
+            debugKeyPressed = true;
+        }
+    }
+    else {
+        debugKeyPressed = false;
+    }
 }
 
 //----------------- Run -----------------

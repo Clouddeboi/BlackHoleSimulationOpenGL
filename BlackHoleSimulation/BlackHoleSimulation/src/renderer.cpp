@@ -545,7 +545,9 @@ void Renderer::render(const Camera& camera, float fps) {
         m_grid->draw(camera.getViewMatrix(), camera.getProjectionMatrix());
     }
 
-    renderDebugText(debugLines);
+    if (m_showDebugText) {
+        renderDebugText(debugLines);
+    }
 }
 
 void Renderer::initRenderTexture() {

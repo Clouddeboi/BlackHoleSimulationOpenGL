@@ -40,6 +40,7 @@ public:
     void toggleGrid() { m_showGrid = !m_showGrid; }
     void renderDebugText(const std::vector<std::string>& lines);
     const std::vector<Planet>& getPlanets() const;
+    void toggleDebugText() { m_showDebugText = !m_showDebugText; }
 
 private:
     int m_width, m_height;
@@ -70,6 +71,7 @@ private:
 
     GLuint m_debugTextShader = 0;
     GLuint m_debugTextVBO = 0, m_debugTextVAO = 0;
+    bool m_showDebugText = true;
 
     GLuint m_bloomExtractTex = 0, m_bloomBlurTex[2] = { 0, 0 };
     GLuint m_bloomExtractFBO = 0, m_bloomBlurFBO[2] = { 0, 0 };
