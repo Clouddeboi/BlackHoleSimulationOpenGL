@@ -11,6 +11,9 @@
 #include <GLFW/glfw3.h>
 #include <stb_image.h>
 #include "stb_easy_font.h"
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 //Utility function to load shaders
 static std::string loadFile(const std::string& path) {
@@ -98,8 +101,8 @@ Renderer::Renderer(int width, int height)
         glBindTexture(GL_TEXTURE_2D, planet.texture);
         glUniform1i(glGetUniformLocation(m_computeShader, "uPlanetTex"), 7 + static_cast<GLint>(i));
 
-        // Dispatch compute or draw call for this planet
-        // (You may need to update your compute shader to handle multiple planets and textures)
+        //Dispatch compute or draw call for this planet
+        //(You may need to update your compute shader to handle multiple planets and textures)
     }
 
     //Time UBO (for animation)
@@ -179,17 +182,31 @@ Renderer::Renderer(int width, int height)
     //convert to simulation units
     bhRadiusSim = static_cast<float>(rs_meters * scale);
 
-    //Setup grid
-    m_grid = new Grid3D(-50.0f, 50.0f, 1.0f, bhRadiusSim);
+    //Calculate ISCO (innermost stable circular orbit) for this black hole
+    double isco_radius_m = 3.0 * rs_meters;//meters
+    double isco_radius_sim = isco_radius_m * scale;//simulation units
 
-    //Planets Setup
+    double earth_radius_m = 1.496e11; //1 AU in meters
+    double v_earth = sqrt(G * m_bhMass / earth_radius_m);
+    double omega_earth = v_earth / earth_radius_m;
+
     Planet earth;
-    earth.position = glm::vec3(10.0f, 0.0f, -80.0f);
+    earth.orbitRadius = earth_radius_m * scale;//simulation units
+    earth.orbitSpeed = omega_earth;//radians/sec (real time)
+    earth.orbitPhase = 0.0;
+    earth.orbitInclination = 0.0;
     earth.radius = 6378.0f * scale;
     earth.color = glm::vec3(1.0f);
     earth.texturePath = "textures/planets/earthTexture.jpg";
     earth.texture = loadTexture(earth.texturePath);
     m_planets.push_back(earth);
+
+    //Debug: print orbital period and orbits per sim minute
+    double T = 2.0 * M_PI / omega_earth;
+    double timeScale = 31557600.0 / 60.0;
+    double orbits_per_sim_minute = (timeScale * 60.0) / T;
+    std::cout << "Earth orbital period (s): " << T << std::endl;
+    std::cout << "Orbits per sim minute: " << orbits_per_sim_minute << std::endl;
 
     Planet mars;
     mars.position = glm::vec3(-15.0f, 0.0f, -90.0f);
@@ -198,6 +215,13 @@ Renderer::Renderer(int width, int height)
     mars.texturePath = "textures/planets/marsTexture.jpg";
     mars.texture = loadTexture(mars.texturePath);
     m_planets.push_back(mars);
+
+    //Setup grid
+    m_grid = new Grid3D(-50.0f, 50.0f, 1.0f, bhRadiusSim);
+}
+
+const std::vector<Planet>& Renderer::getPlanets() const {
+    return m_planets;
 }
 
 //----------------- Destructor -----------------
@@ -352,6 +376,22 @@ void Renderer::render(const Camera& camera, float fps) {
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(DiskBlock), &diskBlock);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
+    const double timeScale = 31557600.0 / 60.0;//1 year in 1 minute
+    double simTime = double(time) * timeScale;
+    for (auto& p : m_planets) {
+        if (p.orbitRadius > 0.0 && p.orbitSpeed > 0.0) {
+            double angle = p.orbitPhase + p.orbitSpeed * simTime;
+            double x = p.orbitRadius * cos(angle);
+            double z = p.orbitRadius * sin(angle);
+            double y = 0.0;
+            if (p.orbitInclination != 0.0) {
+                y = z * sin(p.orbitInclination);
+                z = z * cos(p.orbitInclination);
+            }
+            p.position = glm::vec3(float(x), float(y), float(z));
+        }
+    }
+
     PlanetBlock planetBlock;
     planetBlock.planetPosition = glm::vec3(0.0f, 0.0f, -80.0f);
     planetBlock.planetRadius = 2.0f;
@@ -383,7 +423,7 @@ void Renderer::render(const Camera& camera, float fps) {
     debugLines.push_back("FPS: " + std::to_string(fps));
     debugLines.push_back("Simulation Scale Factor:" + std::to_string(scale));
 
-    // Prepare planet data for SSBO
+    //Prepare planet data for SSBO
     struct PlanetDataGPU {
         glm::vec3 position;
         float radius;
@@ -403,11 +443,11 @@ void Renderer::render(const Camera& camera, float fps) {
     glBufferData(GL_SHADER_STORAGE_BUFFER, planetData.size() * sizeof(PlanetDataGPU), planetData.data(), GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, m_planetSSBO);
 
-    // Set uNumPlanets uniform
+    //Set uNumPlanets uniform
     glUseProgram(m_computeShader);
     glUniform1i(glGetUniformLocation(m_computeShader, "uNumPlanets"), static_cast<GLint>(m_planets.size()));
 
-    // Bind planet textures to units 10, 11, ...
+    //Bind planet textures to units 10, 11, ...
     for (size_t i = 0; i < m_planets.size(); ++i) {
         glActiveTexture(GL_TEXTURE10 + static_cast<GLenum>(i));
         glBindTexture(GL_TEXTURE_2D, m_planets[i].texture);

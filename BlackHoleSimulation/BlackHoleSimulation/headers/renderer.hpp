@@ -22,6 +22,13 @@ struct Planet {
     glm::vec3 color;
     GLuint texture;
     std::string texturePath;
+
+    //Orbital parameters
+    double orbitRadius = 0.0;//meters (simulation units)
+    double realOrbitRadius = 0.0;//meters (simulation units)
+    double orbitSpeed = 0.0;//radians/sec
+    double orbitPhase = 0.0;//initial angle (radians)
+    double orbitInclination = 0.0;//radians, 0 = XZ plane
 };
 
 class Renderer {
@@ -32,12 +39,13 @@ public:
     void render(const Camera& camera, float fps);//called every frame
     void toggleGrid() { m_showGrid = !m_showGrid; }
     void renderDebugText(const std::vector<std::string>& lines);
+    const std::vector<Planet>& getPlanets() const;
 
 private:
     int m_width, m_height;
 
     Grid3D* m_grid;
-    bool m_showGrid = true;
+    bool m_showGrid = false;
 
     void initFullscreenQuad();
     void initShaders();

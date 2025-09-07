@@ -17,6 +17,7 @@ public:
 
     //Update camera based on input
     void update(float deltaTime);
+    void focusOn(const glm::vec3& pos);
 
     //Getters
     glm::mat4 getViewMatrix() const;
