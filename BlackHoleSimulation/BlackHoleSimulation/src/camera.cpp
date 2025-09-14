@@ -1,4 +1,6 @@
-//Movement and matrices
+/*
+	Movement and view matrix calculations for the camera.
+*/
 
 #include "../headers/camera.hpp"
 #include <glm/gtc/matrix_transform.hpp>
@@ -7,15 +9,15 @@
 
 //----------------- Constructor -----------------
 Camera::Camera(float fov, float aspect, float nearPlane, float farPlane)
-    : m_position(0.0f, 0.0f, 30.0f),
-    m_front(0.0f, 0.0f, -1.0f),
-    m_up(0.0f, 1.0f, 0.0f),
-    m_yaw(-90.0f), m_pitch(0.0f),
-    m_speed(2.5f), m_sensitivity(0.1f),
-    m_fov(fov), m_aspect(aspect), m_near(nearPlane), m_far(farPlane),
-    m_firstMouse(true), m_lastX(0.0f), m_lastY(0.0f)
+	: m_position(0.0f, 0.0f, 30.0f),//Start position
+	m_front(0.0f, 0.0f, -1.0f),//Initial front vector (forward direction)
+	m_up(0.0f, 1.0f, 0.0f),//Initial up vector
+	m_yaw(-90.0f), m_pitch(0.0f),//Yaw and pitch angles
+	m_speed(2.5f), m_sensitivity(0.1f),//Movement speed and mouse sensitivity
+	m_fov(fov), m_aspect(aspect), m_near(nearPlane), m_far(farPlane),//Near and far plane clipping
+	m_firstMouse(true), m_lastX(0.0f), m_lastY(0.0f)//Mouse state
 {
-    updateVectors();
+	updateVectors();//Calculate initial direction vectors
 }
 
 //----------------- Update -----------------
@@ -27,35 +29,21 @@ void Camera::update(float deltaTime) {
     float speedMultiplier = (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) ? 4.0f : 1.0f;
     float velocity = m_speed * speedMultiplier * deltaTime;
 
+	//WASD for forward/backward/left/right
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
         m_position += m_front * velocity;
-        //std::cout << "W pressed - moving forward, position: "
-        //    << m_position.x << ", "
-        //    << m_position.y << ", "
-        //    << m_position.z << std::endl;
     }
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
         m_position -= m_front * velocity;
-        //std::cout << "S pressed - moving backward, position: "
-        //    << m_position.x << ", "
-        //    << m_position.y << ", "
-        //    << m_position.z << std::endl;
     }
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
         m_position -= m_right * velocity;
-        //std::cout << "A pressed - moving left, position: "
-        //    << m_position.x << ", "
-        //    << m_position.y << ", "
-        //    << m_position.z << std::endl;
     }
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
         m_position += m_right * velocity;
-        //std::cout << "D pressed - moving right, position: "
-        //    << m_position.x << ", "
-        //    << m_position.y << ", "
-        //    << m_position.z << std::endl;
     }
-    //Up/Down
+
+	//E/Q for up/down
     if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
         m_position += m_up * velocity;
     }
@@ -74,26 +62,32 @@ void Camera::update(float deltaTime) {
 
 //----------------- Mouse -----------------
 void Camera::processMouse(float xpos, float ypos) {
+	//Initialize lastX and lastY on first mouse movement
     if (m_firstMouse) {
         m_lastX = xpos;
         m_lastY = ypos;
         m_firstMouse = false;
     }
 
+	//Calculate offset
     float xoffset = xpos - m_lastX;
     float yoffset = m_lastY - ypos; //reversed
     m_lastX = xpos;
     m_lastY = ypos;
 
+	//Apply sensitivity
     xoffset *= m_sensitivity;
     yoffset *= m_sensitivity;
 
+	//Update yaw and pitch
     m_yaw += xoffset;
     m_pitch += yoffset;
 
+    //Clamp pitch to prevent flipping
     if (m_pitch > 89.0f) m_pitch = 89.0f;
     if (m_pitch < -89.0f) m_pitch = -89.0f;
 
+	//Update direction vectors
     updateVectors();
 }
 
@@ -115,6 +109,7 @@ glm::mat4 Camera::getProj() const {
 
 //----------------- Update Vectors -----------------
 void Camera::updateVectors() {
+	//Calculate the new front vector
     glm::vec3 front;
     front.x = cos(glm::radians(m_yaw)) * cos(glm::radians(m_pitch));
     front.y = sin(glm::radians(m_pitch));
@@ -125,7 +120,9 @@ void Camera::updateVectors() {
     m_up = glm::normalize(glm::cross(m_right, m_front));
 }
 
+//----------------- Get UBO -----------------
 CameraUBO Camera::getUBO() const {
+	//Fill UBO structure for GPU
     CameraUBO data{};
     data.view = getView();
     data.proj = getProj();

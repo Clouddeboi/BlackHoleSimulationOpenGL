@@ -1,4 +1,8 @@
-//Rendering
+/*
+	Core Rendering logic
+	Sets up OpenGL, shaders, textures
+    Handles simulation data
+*/
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "../headers/renderer.hpp"
@@ -24,6 +28,7 @@ static std::string loadFile(const std::string& path) {
     return buffer.str();
 }
 
+//Compile a shader of given type from source
 static unsigned int compileShader(unsigned int type, const std::string& src) {
     unsigned int shader = glCreateShader(type);
     const char* csrc = src.c_str();
@@ -61,6 +66,7 @@ static GLuint loadTexture(const std::string& path) {
 Renderer::Renderer(int width, int height)
     : m_width(width), m_height(height), m_quadVAO(0), m_quadVBO(0), m_shaderProgram(0)
 {
+	//Setup up Quad and shaders for screen-space rendering
     initFullscreenQuad();
     initShaders();
 
@@ -82,6 +88,7 @@ Renderer::Renderer(int width, int height)
     glBindBufferBase(GL_UNIFORM_BUFFER, 2, m_diskUBO);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
+	//Setup planets
     for (size_t i = 0; i < m_planets.size(); ++i) {
         const Planet& planet = m_planets[i];
 
@@ -100,9 +107,6 @@ Renderer::Renderer(int width, int height)
         glActiveTexture(GL_TEXTURE7 + static_cast<GLenum>(i));
         glBindTexture(GL_TEXTURE_2D, planet.texture);
         glUniform1i(glGetUniformLocation(m_computeShader, "uPlanetTex"), 7 + static_cast<GLint>(i));
-
-        //Dispatch compute or draw call for this planet
-        //(You may need to update your compute shader to handle multiple planets and textures)
     }
 
     //Time UBO (for animation)
@@ -112,6 +116,7 @@ Renderer::Renderer(int width, int height)
     glBindBufferBase(GL_UNIFORM_BUFFER, 4, m_timeUBO);//binding = 4
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
+	//Load smoke texture (for accretion disk)
     int texWidth, texHeight, texChannels;
     unsigned char* data = stbi_load("textures/smoke/smoke_01.png", &texWidth, &texHeight, &texChannels, 4);//force RGBA
     if (!data) {
@@ -128,6 +133,7 @@ Renderer::Renderer(int width, int height)
     stbi_image_free(data);
 
     //Cubemap face order: +X, -X, +Y, -Y, +Z, -Z
+	//Load skybox cubemap textures
     std::vector<std::string> faces = {
         "textures/skybox/right.png",
         "textures/skybox/left.png",
@@ -182,31 +188,28 @@ Renderer::Renderer(int width, int height)
     //convert to simulation units
     bhRadiusSim = static_cast<float>(rs_meters * scale);
 
+	//!!!!FAKE ORBITING PLANETS FOR DEMO PURPOSES!!!!
     //Calculate ISCO (innermost stable circular orbit) for this black hole
-    double isco_radius_m = 3.0 * rs_meters;//meters
-    double isco_radius_sim = isco_radius_m * scale;//simulation units
+    //double isco_radius_m = 3.0 * rs_meters;//meters
+    //double isco_radius_sim = isco_radius_m * scale;//simulation units
 
-    double earth_radius_m = 1.496e11; //1 AU in meters
-    double v_earth = sqrt(G * m_bhMass / earth_radius_m);
-    double omega_earth = v_earth / earth_radius_m;
+    //double earth_radius_m = 1.496e11; //1 AU in meters
+    //double v_earth = sqrt(G * m_bhMass / earth_radius_m);
+    //double omega_earth = v_earth / earth_radius_m;
 
+
+	//More planets can be added similarly
     Planet earth;
-    earth.orbitRadius = earth_radius_m * scale;//simulation units
-    earth.orbitSpeed = omega_earth;//radians/sec (real time)
-    earth.orbitPhase = 0.0;
-    earth.orbitInclination = 0.0;
+    //earth.orbitRadius = earth_radius_m * scale;//simulation units
+    //earth.orbitSpeed = omega_earth;//radians/sec (real time)
+    //earth.orbitPhase = 0.0;
+    //earth.orbitInclination = 0.0;
+    earth.position = glm::vec3(0.0f, 0.0f, -90.0f);
     earth.radius = 6378.0f * scale;
     earth.color = glm::vec3(1.0f);
     earth.texturePath = "textures/planets/earthTexture.jpg";
     earth.texture = loadTexture(earth.texturePath);
     m_planets.push_back(earth);
-
-    //Debug: print orbital period and orbits per sim minute
-    //double T = 2.0 * M_PI / omega_earth;
-    //double timeScale = 31557600.0 / 60.0;
-    //double orbits_per_sim_minute = (timeScale * 60.0) / T;
-    //std::cout << "Earth orbital period (s): " << T << std::endl;
-    //std::cout << "Orbits per sim minute: " << orbits_per_sim_minute << std::endl;
 
     Planet mars;
     mars.position = glm::vec3(-15.0f, 0.0f, -90.0f);
@@ -220,6 +223,7 @@ Renderer::Renderer(int width, int height)
     m_grid = new Grid3D(-50.0f, 50.0f, 1.0f, bhRadiusSim);
 }
 
+//Get the list of planets
 const std::vector<Planet>& Renderer::getPlanets() const {
     return m_planets;
 }
@@ -233,6 +237,7 @@ Renderer::~Renderer() {
     delete m_grid;
 }
 
+//----------------- UBOs -----------------
 void Renderer::initUBO() {
     glGenBuffers(1, &m_cameraUBO);
     glBindBuffer(GL_UNIFORM_BUFFER, m_cameraUBO);
@@ -241,6 +246,7 @@ void Renderer::initUBO() {
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
+//----------------- Black Hole UBO -----------------
 void Renderer::initBlackHoleUBO() {
     glGenBuffers(1, &m_blackHoleUBO);
     glBindBuffer(GL_UNIFORM_BUFFER, m_blackHoleUBO);
@@ -281,6 +287,7 @@ void Renderer::initFullscreenQuad() {
 }
 
 //----------------- Shaders -----------------
+//Load and compile shaders
 void Renderer::initShaders() {
     std::string vertSrc = loadFile("shaders/blit.vert");
     std::string fragSrc = loadFile("shaders/blit.frag");
@@ -354,7 +361,9 @@ void Renderer::initShaders() {
 }
 
 //----------------- Render -----------------
+//Main render function, called every frame
 void Renderer::render(const Camera& camera, float fps) {
+    //Get current time 
     float time = static_cast<float>(glfwGetTime());
     glBindBuffer(GL_UNIFORM_BUFFER, m_timeUBO);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(float), &time);
@@ -366,6 +375,7 @@ void Renderer::render(const Camera& camera, float fps) {
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(CameraUBO), &data);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
+	//Set up accretion disk parameters
     DiskBlock diskBlock;
     diskBlock.diskInnerRadius = bhRadiusSim * 3.0f;
     diskBlock.diskOuterRadius = bhRadiusSim * 10.0f;
@@ -376,6 +386,8 @@ void Renderer::render(const Camera& camera, float fps) {
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(DiskBlock), &diskBlock);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
+	//Update planet positions based on time
+	//For demo purposes, we fake circular orbits
     const double timeScale = 31557600.0 / 60.0;//1 year in 1 minute
     double simTime = double(time) * timeScale;
     for (auto& p : m_planets) {
@@ -392,6 +404,7 @@ void Renderer::render(const Camera& camera, float fps) {
         }
     }
 
+	//Update Planet UBO (for first planet as example)
     PlanetBlock planetBlock;
     planetBlock.planetPosition = glm::vec3(0.0f, 0.0f, -80.0f);
     planetBlock.planetRadius = 2.0f;
@@ -414,6 +427,10 @@ void Renderer::render(const Camera& camera, float fps) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+	//Prepare debug text lines
+	//We use stb_easy_font for simplicity
+	//Not optimal for large amounts of text and good performance
+	//But good enough for basic debug info and current project scale
     std::vector<std::string> debugLines;
     glm::vec3 camPos = camera.getPosition();
 
@@ -438,12 +455,16 @@ void Renderer::render(const Camera& camera, float fps) {
         const glm::vec3& earthPos = m_planets[0].position;
         debugLines.push_back(tab + "Earth Position: (" + std::to_string(earthPos.x) + ", " + std::to_string(earthPos.y) + ", " + std::to_string(earthPos.z) + ")");
 
-        double omega_earth = m_planets[0].orbitSpeed;
-        if (omega_earth > 0.0) {
-            double T = 2.0 * M_PI / omega_earth;
-            double orbitCount = simTime / T;
-            debugLines.push_back(tab + "Earth Orbits: " + std::to_string(orbitCount));
-        }
+        const glm::vec3& marsPos = m_planets[1].position;
+        debugLines.push_back(tab + "Mars Position: (" + std::to_string(marsPos.x) + ", " + std::to_string(marsPos.y) + ", " + std::to_string(marsPos.z) + ")");
+
+		//For demo purposes, calculate and display number of Earth orbits completed
+        //double omega_earth = m_planets[0].orbitSpeed;
+        //if (omega_earth > 0.0) {
+        //    double T = 2.0 * M_PI / omega_earth;
+        //    double orbitCount = simTime / T;
+        //    debugLines.push_back(tab + "Earth Orbits: " + std::to_string(orbitCount));
+        //}
     }
 
     //Prepare planet data for SSBO
@@ -483,10 +504,6 @@ void Renderer::render(const Camera& camera, float fps) {
         glUniformBlockBinding(m_computeShader, blockIndex, 0);
     }
     glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_cameraUBO);
-
-    //std::cout << "bhRadiusSim: " << bhRadiusSim << std::endl;
-    //std::cout << "diskInnerRadius: " << diskBlock.diskInnerRadius << std::endl;
-    //std::cout << "diskOuterRadius: " << diskBlock.diskOuterRadius << std::endl;
 
     glBindBuffer(GL_UNIFORM_BUFFER, m_planetUBO);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(PlanetBlock), &planetBlock);
@@ -613,6 +630,7 @@ void Renderer::initBloomTextures() {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
+//Render debug text using stb_easy_font
 void Renderer::renderDebugText(const std::vector<std::string>& lines) {
     float x = 10.0f, y = 30.0f;
     char buffer[99999];

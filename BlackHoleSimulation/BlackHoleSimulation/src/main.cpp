@@ -1,4 +1,6 @@
-//Entry point
+/*
+    Entry point for the Black Hole Simulation application
+*/
 
 #include "../headers/app.hpp"
 #include "../headers/renderer.hpp"

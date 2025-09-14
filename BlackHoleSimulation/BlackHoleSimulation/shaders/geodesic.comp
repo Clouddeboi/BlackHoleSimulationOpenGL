@@ -1,6 +1,12 @@
 #version 430
 #define MAX_PLANETS 8
 
+/*
+    Compute shader.
+    Performs ray tracing through curved spacetime to simulate gravitational lensing, disk emission, and planet rendering.
+    Handles all the core visual effects of the black hole and its surroundings.
+*/
+
 layout(local_size_x = 8, local_size_y = 8) in;
 
 layout(rgba32f, binding = 0) uniform image2D destTex;

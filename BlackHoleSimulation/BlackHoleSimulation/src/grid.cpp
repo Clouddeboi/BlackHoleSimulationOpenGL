@@ -1,4 +1,6 @@
-//Grid mesh and render
+/*
+	Generates a 3D grid with a gravitational well effect.
+*/
 
 #include "../headers/grid.hpp"
 #include <vector>
@@ -16,6 +18,7 @@ static std::string loadFile(const std::string& path) {
     return buffer.str();
 }
 
+//Compile a shader of given type from source
 static GLuint compileShader(GLenum type, const std::string& src) {
     GLuint shader = glCreateShader(type);
     const char* csrc = src.c_str();
@@ -38,17 +41,18 @@ Grid3D::Grid3D(float min, float max, float spacing, float bhRadius)
     //y = -wellDepth / r (Newtonian/Schwarzschild-like)
     float wellDepth = bhRadius * 5.0f;
 
+	//Store vertices in a vector
     std::vector<glm::vec3> vertices;
 
     //X lines (varying x, fixed z)
     for (float x = min; x <= max; x += spacing) {
         for (float z = min; z < max; z += spacing) {
-            float r1 = sqrt(x * x + z * z);
+			float r1 = sqrt(x * x + z * z);//Distance from origin
             float r2 = sqrt(x * x + (z + spacing) * (z + spacing));
             float y1 = (r1 > 0.01f) ? -wellDepth / r1 : -wellDepth * 100.0f;
             float y2 = (r2 > 0.01f) ? -wellDepth / r2 : -wellDepth * 100.0f;
-            vertices.push_back({ x, y1, z });
-            vertices.push_back({ x, y2, z + spacing });
+			vertices.push_back({ x, y1, z });//First point
+			vertices.push_back({ x, y2, z + spacing });//Second point
         }
     }
     //Z lines (varying z, fixed x)
@@ -63,6 +67,7 @@ Grid3D::Grid3D(float min, float max, float spacing, float bhRadius)
         }
     }
 
+	//Store vertex count
     m_vertexCount = vertices.size();
 
     //OpenGL VAO/VBO
@@ -78,12 +83,14 @@ Grid3D::Grid3D(float min, float max, float spacing, float bhRadius)
     initShader();
 }
 
+//----------------- Destructor -----------------
 Grid3D::~Grid3D() {
     glDeleteVertexArrays(1, &m_vao);
     glDeleteBuffers(1, &m_vbo);
     glDeleteProgram(m_shaderProgram);
 }
 
+//----------------- Init Shader -----------------
 void Grid3D::initShader() {
     std::string vertSrc = loadFile("shaders/grid/shader.vert");
     std::string fragSrc = loadFile("shaders/grid/shader.frag");
@@ -104,6 +111,7 @@ void Grid3D::initShader() {
     glDeleteShader(frag);
 }
 
+//----------------- Draw -----------------
 void Grid3D::draw(const glm::mat4& view, const glm::mat4& proj) {
     glUseProgram(m_shaderProgram);
     glUniform3f(glGetUniformLocation(m_shaderProgram, "uGridColor"), 0.0f, 0.0f, 0.0f);
