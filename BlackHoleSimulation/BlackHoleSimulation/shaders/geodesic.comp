@@ -7,10 +7,13 @@
     Handles all the core visual effects of the black hole and its surroundings.
 */
 
+//Each workgroup processes an 8x8 block of pixels
 layout(local_size_x = 8, local_size_y = 8) in;
 
+//Output image (RGBA32F format for high dynamic range)
 layout(rgba32f, binding = 0) uniform image2D destTex;
 
+//Camera parameters
 layout(std140, binding = 0) uniform CameraBlock {
     mat4 view;
     mat4 proj;
@@ -19,6 +22,7 @@ layout(std140, binding = 0) uniform CameraBlock {
     vec4 camPos;
 };
 
+//Planet data structure
 struct PlanetData {
     vec3 position;
     float radius;
@@ -26,17 +30,20 @@ struct PlanetData {
     float _pad;
 };
 
+//Black hole parameters
 layout(std140, binding = 1) uniform BlackHoleBlock {
     vec3 bhPosition;
     float bhRadius;
 };
 
+//Accretion disk parameters
 layout(std140, binding = 2) uniform DiskBlock {
     float diskInnerRadius;
     float diskOuterRadius;
     vec3 diskColor;
 };
 
+//Single planet parameters (for convenience), not used if multiple planets are defined
 layout(std140, binding = 3) uniform PlanetBlock {
     vec3 planetPosition;
     float planetRadius;
@@ -44,14 +51,17 @@ layout(std140, binding = 3) uniform PlanetBlock {
     float _pad;
 };
 
+//Time parameter for animations
 layout(std140, binding = 4) uniform TimeBlock {
     float uTime;
 };
 
+//Simple hash function for generating pseudo-random values (procedural textures)
 float hash(float n) {
     return fract(sin(n) * 43758.5453);
 }
 
+//2D Perlin-like noise function
 float noise(vec2 x) {
     vec2 p = floor(x);
     vec2 f = fract(x);
@@ -64,152 +74,186 @@ float noise(vec2 x) {
     );
 }
 
+//Accretion disk texture (smoke-like)
 layout(binding = 5) uniform sampler2D uSmokeTex;
 
+//Skybox texture for background (and lensing)
 layout(binding = 6) uniform samplerCube uSkybox;
 
+//Shader storage buffer for multiple planets
 layout(std430, binding = 7) buffer PlanetSSBO {
     PlanetData planets[];
 };
 
+//Number of planets in the scene
 uniform int uNumPlanets;
+
+//Array of planet textures
 layout(binding = 10) uniform sampler2D uPlanetTextures[MAX_PLANETS];
 
-// Schwarzschild "acceleration" for photon (approximate, for visualization)
+//Schwarzschild "acceleration" for photon (approximate, for visualization)
+//Returns the change in direction due to spacetime curvature
 vec3 schwarzschildAccel(vec3 pos, float rs) {
     float r = length(pos);
     return -rs / (r * r) * normalize(pos);
 }
 
-// Runge-Kutta 4th order integration step for ray position and direction
+//Runge-Kutta 4th order integration step for ray position and direction
+//Used to numerically integrate the geodesic equations
 void rk4Step(inout vec3 pos, inout vec3 dir, float stepSize, float rs) {
+
+    //k1
     vec3 k1_v = schwarzschildAccel(pos, rs);
     vec3 k1_x = dir;
 
+    //k2
     vec3 k2_v = schwarzschildAccel(pos + 0.5 * stepSize * k1_x, rs);
     vec3 k2_x = normalize(dir + 0.5 * stepSize * k1_v);
 
+    //k3
     vec3 k3_v = schwarzschildAccel(pos + 0.5 * stepSize * k2_x, rs);
     vec3 k3_x = normalize(dir + 0.5 * stepSize * k2_v);
 
+    //k4
     vec3 k4_v = schwarzschildAccel(pos + stepSize * k3_x, rs);
     vec3 k4_x = normalize(dir + stepSize * k3_v);
 
+    //Combine increments
     dir = normalize(dir + (stepSize / 6.0) * (k1_v + 2.0 * k2_v + 2.0 * k3_v + k4_v));
     pos = pos + (stepSize / 6.0) * (k1_x + 2.0 * k2_x + 2.0 * k3_x + k4_x);
 }
 
+//Generate a ray direction from pixel coordinates
 vec3 generateRay(vec2 pixel, vec2 resolution) {
+
+    //Convert pixel coordinates to normalized device coordinates (NDC)
     vec2 ndc = (pixel / resolution) * 2.0 - 1.0;
+
+    //Homogeneous clip coordinates
     vec4 clip = vec4(ndc, -1.0, 1.0);
+
+    //Transform to eye space
     vec4 eye = invProj * clip;
     eye = vec4(eye.xy, -1.0, 0.0);
+
+    //Transform to world space
     return normalize((invView * eye).xyz);
 }
 
+//Disk color gradient (from inner to outer)
 vec3 innerColor = vec3(0.7, 0.85, 1.0);
 vec3 outerColor = vec3(1.0, 0.4, 0.1);
 
 void main() {
+
+   //Get pixel coordinates
     ivec2 pixelCoords = ivec2(gl_GlobalInvocationID.xy);
     ivec2 imageSize = imageSize(destTex);
 
+    //Bounds check (skip if out of bounds)
     if (pixelCoords.x >= imageSize.x || pixelCoords.y >= imageSize.y) return;
 
+    //Prepare ray origin and direction
     vec2 resolution = vec2(imageSize);
     vec3 rayDir = generateRay(vec2(pixelCoords) + 0.5, resolution);
-    vec3 rayOrigin = camPos.xyz;
+    vec3 rayOrigin = camPos.xyz;//Camera position
 
-    // Lensing integration parameters
-    const int MAX_STEPS = 2000;
-    const float STEP_SIZE = 0.1;
+    //Lensing integration parameters
+    const int MAX_STEPS = 2000;//Maximum number of integration steps
+    const float STEP_SIZE = 0.1;//Integration step size
 
-    vec3 pos = rayOrigin;
-    vec3 dir = rayDir;
-    vec3 color = vec3(0.0);
-    bool hit = false;
-    bool nearPhotonSphere = false;
+    vec3 pos = rayOrigin;//Current ray position
+    vec3 dir = rayDir;//Current ray direction
+    vec3 color = vec3(0.0);//Current accumulated color
+    bool hit = false;//Whether the ray hit something
+    bool nearPhotonSphere = false;//If the ray passed near the photon sphere
 
+    //Approximate photon sphere parameters
     float photonSphereRadius = bhRadius * 1.5;
-    float photonSphereThickness = bhRadius * 0.1;
+    float photonSphereThickness = bhRadius * 0.1;//Thickness for highlight effect
 
-    // Multiple disk images: accumulate color for each disk hit
+    //Multiple disk images: accumulate color for each disk hit
     int diskHits = 0;
     vec3 diskAccum = vec3(0.0);
 
+    //Main ray marching loop
     for (int i = 0; i < MAX_STEPS; ++i) 
     {
+        //Distance from black hole center
         float r = length(pos);
 
-        // Event horizon check
+        //Event horizon check
         if (r < bhRadius) {
+            //If inside the event horizon, set color to black
             color = vec3(0.0);
             hit = true;
             break;
         }
 
-        // Check if ray passes near the photon sphere at any step
+        //Check if ray passes near the photon sphere at any step
         if (abs(r - photonSphereRadius) < photonSphereThickness) {
             nearPhotonSphere = true;
         }
 
-        // Accretion disk intersection (XZ plane, y ~ 0)
+        //Accretion disk intersection (XZ plane, y ~ 0)
         if (abs(pos.y) < STEP_SIZE) {
             float diskR = length(pos.xz);
+
+            //Check if within disk radii
             if (diskR > diskInnerRadius && diskR < diskOuterRadius) {
-                // --- Relativistic Doppler and Beaming Effect ---
-                vec3 diskTangent = normalize(vec3(-pos.z, 0.0, pos.x));
-                float v = 0.75; // Fraction of c
+                //--- Relativistic Doppler and Beaming Effect ---
+                vec3 diskTangent = normalize(vec3(-pos.z, 0.0, pos.x));//Tangent direction of disk rotation
+                float v = 0.75;//Fraction of c
                 vec3 vDisk = v * diskTangent;
                 vec3 photonDir = -normalize(dir);
                 float beta = v;
                 float cosTheta = dot(normalize(vDisk), photonDir);
                 float gamma = 1.0 / sqrt(1.0 - beta * beta);
-                float D = gamma * (1.0 - beta * cosTheta);
+                float D = gamma * (1.0 - beta * cosTheta);//Doppler factor
 
-                // Disk local coordinates
+                //Disk local coordinates
                 float phi = atan(pos.x, pos.z) + uTime * 1.0;
                 float t = clamp((diskR - diskInnerRadius) / (diskOuterRadius - diskInnerRadius), 0.0, 1.0);
 
-                // --- Tiling parameters ---
-                const float tileCountU = 1.0; // Number of strips around the disk (angular)
-                const float tileCountV = 1.0; // Number of tiles from inner to outer edge (radial)
+                //--- Tiling parameters (currently 1x1)---
+                const float tileCountU = 1.0; //Number of strips around the disk (angular)
+                const float tileCountV = 1.0; //Number of tiles from inner to outer edge (radial)
 
-                // --- Compute base tile coordinates ---
-                float baseU = phi / (2.0 * 3.14159265); // [-0.5, 0.5]
-                baseU = baseU - floor(baseU);           // [0,1)
-                float baseV = t;                        // [0,1]
+                //--- Compute base tile coordinates ---
+                float baseU = phi / (2.0 * 3.14159265);//[-0.5, 0.5]
+                baseU = baseU - floor(baseU);//[0,1)
+                float baseV = t;//[0,1]
 
-                // --- Which tile are we in? ---
+                //--- Which tile are we in? (for randomization)---
                 float tileIdxU = floor(baseU * tileCountU);
                 float tileIdxV = floor(baseV * tileCountV);
 
-                // --- Random offset for this tile (using hash) ---
+                //--- Random offset for this tile (using hash(for procedural randomization)) ---
                 float tileRandU = hash(tileIdxU + tileIdxV * 100.0);
                 float tileRandV = hash(tileIdxV + tileIdxU * 100.0);
 
-                // --- Final tile-local coordinates, with random offset ---
+                //--- Final tile-local coordinates, with random offset ---
                 const float margin = 0.08;
                 float texU = mix(margin, 1.0 - margin, baseU);
                 float texV = mix(margin, 1.0 - margin, baseV);
 
                 vec2 texCoords = vec2(texU, texV);
 
-                // Sample the texture
+                //Sample the texture
                 vec4 smokeSample = texture(uSmokeTex, texCoords);
-                float smoke = smokeSample.a; // or .r for grayscale
+                float smoke = smokeSample.a; //or .r for grayscale
 
-                // Combine with procedural noise as before
+                //Combine with procedural noise as before
                 float combined = mix(noise(texCoords * 8.0 + uTime * 0.1), smoke, 0.95);
 
-                // Height-based falloff for 3D "gas"
+                //Height-based falloff for 3D "gas"
                 float heightFalloff = exp(-abs(pos.y) * 2.0);
 
                 //fade disk edges
                 float edgeFade = smoothstep(diskInnerRadius, diskInnerRadius + 0.5, diskR) *
                                  (1.0 - smoothstep(diskOuterRadius - 0.5, diskOuterRadius, diskR));
 
-                // Final color
+                //Final color
                 vec3 tempColor = mix(innerColor, outerColor, t);
                 tempColor += 0.25 * combined;
                 tempColor = clamp(tempColor, 0.0, 1.0);
@@ -220,17 +264,17 @@ void main() {
                 vec3 dopplerColor = pow(baseColor, vec3(1.0/D, 1.0, D));
                 vec3 diskCol = dopplerColor * (1.0 / D);
 
-                // --- Gravitational Redshift ---
+                //--- Gravitational Redshift ---
                 float rs = bhRadius;
                 float gRedshift = sqrt(1.0 - rs / diskR);
                 diskCol = mix(vec3(diskCol.r, 0.0, 0.0), diskCol, gRedshift);
 
-                // --- Lambertian Shading ---
+                //--- Lambertian Shading ---
                 vec3 normal = vec3(0.0, 1.0, 0.0);
-                vec3 lightDir = normalize(vec3(0.3, 1.0, 0.3)); // angled light
+                vec3 lightDir = normalize(vec3(0.3, 1.0, 0.3)); //angled light
                 float diffuse = max(dot(normal, lightDir), 0.0);
 
-                // --- Black Hole Shadow on Disk (Analytical, limited to disk) ---
+                //--- Black Hole Shadow on Disk (Analytical, limited to disk) ---
                 vec3 shadowOrigin = pos + 0.01 * lightDir;
                 vec3 oc = shadowOrigin - bhPosition;
                 float b = dot(oc, lightDir);
@@ -243,7 +287,8 @@ void main() {
                     if (t > 0.0 && t < maxShadowDistance) {
                         vec3 shadowHit = shadowOrigin + t * lightDir;
                         float shadowDiskR = length(shadowHit.xz);
-                        // Only shadow if intersection is within the disk region
+
+                        //Only shadow if intersection is within the disk region
                         if (abs(shadowHit.y) < STEP_SIZE &&
                             shadowDiskR > diskInnerRadius && shadowDiskR < diskOuterRadius) {
                             inShadow = true;
@@ -252,18 +297,18 @@ void main() {
                 }
                 float shadowFactor = inShadow ? 0.05 : 1.0;
 
-                // Escape condition (sky)
+                //Escape condition (sky)
                 if (r > 100.0) {
                     break;
                 }
 
-                // --- Specular Highlight ---
+                //--- Specular Highlight ---
                 vec3 viewDir = normalize(rayOrigin - pos);
                 vec3 halfDir = normalize(lightDir + viewDir);
                 float spec = pow(max(dot(normal, halfDir), 0.0), 32.0);
                 spec = min(spec, 1.0);
 
-                // --- Combine Shading ---
+                //--- Combine Shading ---
                 diskCol *= (0.3 + 0.7 * diffuse) * shadowFactor;
                 diskCol += vec3(1.0, 0.9, 0.7) * spec * 0.2 * shadowFactor;
 
@@ -271,27 +316,27 @@ void main() {
                 vec3 emissionColor = diskColor * emissionStrength;
                 diskCol += emissionColor;
 
-                // --- Bloom Boost ---
+                //--- Bloom Boost ---
                 //diskCol *= 1.0;
 
-                // Accumulate disk color, dimmer for higher-order images
+                //Accumulate disk color, dimmer for higher-order images
                 float weight = pow(0.5, float(diskHits));
                 diskAccum += diskCol * weight;
                 diskHits++;
             }      
         }
-        // Sphere intersection
+        //Sphere intersection
         for (int p = 0; p < uNumPlanets; ++p) {
             PlanetData planet = planets[p];
             float distToPlanet = length(pos - planet.position);
             if (distToPlanet < planet.radius) {
-                // Compute UV coordinates for the sphere (simple equirectangular mapping)
+                //Compute UV coordinates for the sphere (simple equirectangular mapping)
                 vec3 normal = normalize(pos - planet.position);
                 float u = 0.5 + atan(normal.z, normal.x) / (2.0 * 3.14159265);
                 float v = 0.5 - asin(normal.y) / 3.14159265;
                 vec3 planetCol = texture(uPlanetTextures[p], vec2(u, v)).rgb;
 
-                // Simple Lambertian shading
+                //Simple Lambertian shading
                 vec3 lightDir = normalize(vec3(0.3, 1.0, 0.3));
                 float diffuse = max(dot(normal, lightDir), 0.0);
                 planetCol *= (0.3 + 0.7 * diffuse);
@@ -303,7 +348,7 @@ void main() {
             }
         }
 
-        // Escape condition (sky)
+        //Escape condition (sky)
         if (r > 3000.0) {
             break;
         }
@@ -315,9 +360,9 @@ void main() {
         color = diskAccum;
         hit = true;
     }
-
+        //If nothing was hit, sample the skybox with lensing and apply gravitational redshift
         if (!hit) {
-            vec3 lensedDir = normalize(dir); // after lensing integration
+            vec3 lensedDir = normalize(dir); //after lensing integration
             vec3 skyColor = texture(uSkybox, lensedDir).rgb;
 
             //Apply gravitational redshift/time dilation
@@ -328,7 +373,7 @@ void main() {
 
             color = skyColor;
 
-            // --- Photon Sphere Highlight (only for escaping rays) ---
+            //--- Photon Sphere Highlight (only for escaping rays) ---
             if (nearPhotonSphere) {
                 color = mix(color, vec3(5.0, 5.0, 1.5), 0.2);
             }

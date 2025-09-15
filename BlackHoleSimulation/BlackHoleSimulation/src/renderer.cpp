@@ -171,7 +171,7 @@ Renderer::Renderer(int width, int height)
     constexpr double c = 2.99792458e8;//Speed of light in vacuum (m/s)
     constexpr double solarMass = 1.98847e30;//Mass of the sun (kg)
 
-	//Black hole mass (in kg) (10 solar masses)
+	//Black hole mass (in kg) (5 solar masses)
     m_bhMass = 5.0 * solarMass;
 
     //Schwarzschild radius formula:
