@@ -44,6 +44,7 @@
     <None Include="shaders\ray\shader.vert" />
     <None Include="shaders\skybox\skybox.frag" />
     <None Include="shaders\skybox\skybox.vert" />
+    <None Include="vcpkg.json" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="textures\planets\earthTexture.jpg" />
@@ -103,6 +104,7 @@
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+<Import Project="$(VcpkgProps)" Condition="Exists('$(VcpkgProps)')" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
   <ImportGroup Label="Shared">
@@ -120,20 +122,16 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>C:\Users\Michal\Desktop\GameDevCPP\Projects\AdditionalDependancy\glfw-3.4.bin.WIN64\include;C:\Users\Michal\Desktop\GameDevCPP\Projects\AdditionalDependancy\glad\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Users\Michal\Desktop\GameDevCPP\Projects\AdditionalDependancy\glfw-3.4.bin.WIN64\lib-vc2022;$(LibraryPath)</LibraryPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <LibraryPath>C:\Users\Michal\Desktop\GameDevCPP\Projects\AdditionalDependancy\glfw-3.4.bin.WIN64\lib-vc2022;$(LibraryPath)</LibraryPath>
-    <IncludePath>C:\Users\Michal\Desktop\GameDevCPP\Projects\AdditionalDependancy\glfw-3.4.bin.WIN64\include;C:\Users\Michal\Desktop\GameDevCPP\Projects\AdditionalDependancy\glad\include;$(IncludePath)</IncludePath>
-  </PropertyGroup>
+<PropertyGroup Label="Vcpkg">
+    <VcpkgEnableManifest>true</VcpkgEnableManifest>
+</PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+       <AdditionalIncludeDirectories>$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -148,6 +146,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+       <AdditionalIncludeDirectories>$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -160,13 +159,21 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)include</AdditionalIncludeDirectories>
+       <AdditionalIncludeDirectories>
+$(ProjectDir)include;
+$(ProjectDir)vcpkg_installed\x64-windows\include;
+%(AdditionalIncludeDirectories)
+</AdditionalIncludeDirectories>
     </ClCompile>
-    <Link>
-      <SubSystem>Console</SubSystem>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>glfw3.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-    </Link>
+<Link>
+    <SubSystem>Console</SubSystem>
+    <GenerateDebugInformation>true</GenerateDebugInformation>
+    <AdditionalIncludeDirectories>
+$(ProjectDir)include;
+$(ProjectDir)vcpkg_installed\x64-windows\include;
+%(AdditionalIncludeDirectories)
+</AdditionalIncludeDirectories>
+</Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -176,13 +183,17 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)include</AdditionalIncludeDirectories>
+       <AdditionalIncludeDirectories>$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
-    <Link>
-      <SubSystem>Console</SubSystem>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>glfw3.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-    </Link>
+<Link>
+    <SubSystem>Console</SubSystem>
+    <GenerateDebugInformation>true</GenerateDebugInformation>
+    <AdditionalDependencies>glfw3dll.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    <AdditionalLibraryDirectories>
+        $(ProjectDir)vcpkg_installed\x64-windows\lib;
+        %(AdditionalLibraryDirectories)
+    </AdditionalLibraryDirectories>
+</Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
