@@ -230,10 +230,44 @@ const std::vector<Planet>& Renderer::getPlanets() const {
 
 //----------------- Destructor -----------------
 Renderer::~Renderer() {
+    //Shaders
     glDeleteProgram(m_shaderProgram);
+    glDeleteProgram(m_computeShader);
+    glDeleteProgram(m_debugTextShader);
+    glDeleteProgram(m_bloomExtractShader);
+    glDeleteProgram(m_bloomBlurShader);
+
+    //VAOs and VBOs
     glDeleteVertexArrays(1, &m_quadVAO);
     glDeleteBuffers(1, &m_quadVBO);
+    glDeleteVertexArrays(1, &m_debugTextVAO);
+    glDeleteBuffers(1, &m_debugTextVBO);
+
+    //UBOs and SSBOs
+    glDeleteBuffers(1, &m_cameraUBO);
     glDeleteBuffers(1, &m_blackHoleUBO);
+    glDeleteBuffers(1, &m_diskUBO);
+    glDeleteBuffers(1, &m_planetUBO);
+    glDeleteBuffers(1, &m_planetSSBO);
+    glDeleteBuffers(1, &m_timeUBO);
+
+    //Textures
+    glDeleteTextures(1, &m_renderTex);
+    glDeleteTextures(1, &m_smokeTex);
+    glDeleteTextures(1, &m_skyboxTex);
+    glDeleteTextures(1, &m_bloomExtractTex);
+    glDeleteTextures(2, m_bloomBlurTex);
+
+    //Framebuffers
+    glDeleteFramebuffers(1, &m_bloomExtractFBO);
+    glDeleteFramebuffers(2, m_bloomBlurFBO);
+
+    //Planet textures
+    for (const auto& planet : m_planets) {
+        glDeleteTextures(1, &planet.texture);
+    }
+
+    //Grid (raw pointer)
     delete m_grid;
 }
 
