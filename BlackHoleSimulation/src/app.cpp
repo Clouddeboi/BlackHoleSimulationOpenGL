@@ -18,32 +18,31 @@ App::App(int width, int height, const std::string& title)
     : m_width(width), m_height(height), m_title(title), m_window(nullptr),
     m_renderer(nullptr), m_camera(nullptr), m_lastFrame(0.0f)
 {
-	initGLFW();//Create window and context
-	initGLAD();//Load OpenGL functions
+    initGLFW();//Create window and context
+    initGLAD();//Load OpenGL functions
 
-	//Create camera and renderer
-	//Camera (fov, aspect, near, far)
-    m_camera = new Camera(60.0f, (float)m_width / m_height, 0.1f, 10000.0f);
-    m_renderer = new Renderer(m_width, m_height);
+    //Create camera and renderer using smart pointers
+    //Camera (fov, aspect, near, far)
+    m_camera = std::make_unique<Camera>(60.0f, (float)m_width / m_height, 0.1f, 10000.0f);
+    m_renderer = std::make_unique<Renderer>(m_width, m_height);
 
     //Hook mouse callback
-	//Setting user pointer to camera for access in callback
-    glfwSetWindowUserPointer(m_window, m_camera);
+    //Setting user pointer to camera for access in callback
+    glfwSetWindowUserPointer(m_window, m_camera.get());
 
-	//set the mouse callback to update camera direction
+    //set the mouse callback to update camera direction
     glfwSetCursorPosCallback(m_window, [](GLFWwindow* window, double xpos, double ypos) {
         Camera* cam = reinterpret_cast<Camera*>(glfwGetWindowUserPointer(window));
         if (cam) cam->processMouse((float)xpos, (float)ypos);
         });
-	//Hide and capture cursor
+
+    //Hide and capture cursor
     glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 }
 
 //----------------- Destructor -----------------
 App::~App() {
-	//Clean up resources
-    delete m_renderer;
-    delete m_camera;
+    //Clean up resources - smart pointers handle m_renderer and m_camera automatically
     glfwDestroyWindow(m_window);
     glfwTerminate();
 }
@@ -73,8 +72,8 @@ void App::initGLFW() {
         throw std::runtime_error("Failed to create GLFW window!");
     }
 
-	//Set user pointer to camera for access in mouse callback
-    glfwSetWindowUserPointer(m_window, m_camera);
+    //Set user pointer to camera for access in mouse callback
+    glfwSetWindowUserPointer(m_window, m_camera.get());
     glfwSetCursorPosCallback(m_window, mouse_callback);
 
 	//Hide and capture cursor
