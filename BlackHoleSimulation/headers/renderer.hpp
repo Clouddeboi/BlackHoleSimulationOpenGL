@@ -1,13 +1,13 @@
 #pragma once
 #include <string>
+#include <memory>
 #include "../headers/camera.hpp"
-#include "../headers/grid.hpp"
 #include <glad/glad.h>
 #include <vector>
-#include <string>
 
 //Forward declaration
 class App;
+class Grid3D;
 
 struct PlanetBlock {
     glm::vec3 planetPosition;
@@ -45,7 +45,7 @@ public:
 private:
     int m_width, m_height;
 
-    Grid3D* m_grid;
+    std::unique_ptr<Grid3D> m_grid;
     bool m_showGrid = false;
 
     void initFullscreenQuad();

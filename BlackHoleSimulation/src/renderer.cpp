@@ -15,6 +15,7 @@
 #include <GLFW/glfw3.h>
 #include <stb_image.h>
 #include "stb_easy_font.h"
+#include "../headers/grid.hpp"
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
@@ -220,7 +221,7 @@ Renderer::Renderer(int width, int height)
     m_planets.push_back(mars);
 
     //Setup grid
-    m_grid = new Grid3D(-50.0f, 50.0f, 1.0f, bhRadiusSim);
+    m_grid = std::make_unique<Grid3D>(-50.0f, 50.0f, 1.0f, bhRadiusSim);
 }
 
 //Get the list of planets
@@ -266,9 +267,6 @@ Renderer::~Renderer() {
     for (const auto& planet : m_planets) {
         glDeleteTextures(1, &planet.texture);
     }
-
-    //Grid (raw pointer)
-    delete m_grid;
 }
 
 //----------------- UBOs -----------------
