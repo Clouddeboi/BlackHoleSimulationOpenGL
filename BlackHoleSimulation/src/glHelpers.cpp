@@ -150,3 +150,45 @@ GLuint GLHelpers::loadTexture(const std::string& path) {
 
     return texture;
 }
+
+
+//===== Framebuffer Validation =====
+
+void GLHelpers::checkFramebufferComplete(const std::string& name) {
+    GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (status != GL_FRAMEBUFFER_COMPLETE) {
+        std::string error = "Framebuffer incomplete: " + name + " - ";
+
+        switch (status) {
+        case GL_FRAMEBUFFER_UNDEFINED:
+            error += "UNDEFINED (default framebuffer doesn't exist)";
+            break;
+        case GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT:
+            error += "INCOMPLETE_ATTACHMENT (attachment point incomplete)";
+            break;
+        case GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT:
+            error += "MISSING_ATTACHMENT (no images attached)";
+            break;
+        case GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER:
+            error += "INCOMPLETE_DRAW_BUFFER (draw buffer incomplete)";
+            break;
+        case GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER:
+            error += "INCOMPLETE_READ_BUFFER (read buffer incomplete)";
+            break;
+        case GL_FRAMEBUFFER_UNSUPPORTED:
+            error += "UNSUPPORTED (format combination not supported)";
+            break;
+        case GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE:
+            error += "INCOMPLETE_MULTISAMPLE (sample counts don't match)";
+            break;
+        case GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS:
+            error += "INCOMPLETE_LAYER_TARGETS (layered attachments incomplete)";
+            break;
+        default:
+            error += "UNKNOWN (" + std::to_string(status) + ")";
+            break;
+        }
+
+        throw std::runtime_error(error);
+    }
+}

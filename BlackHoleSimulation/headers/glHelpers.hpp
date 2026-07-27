@@ -19,4 +19,7 @@ namespace GLHelpers {
 
     //Texture loading
     GLuint loadTexture(const std::string& path);
+
+    //Framebuffer validation
+    void checkFramebufferComplete(const std::string& name);
 }

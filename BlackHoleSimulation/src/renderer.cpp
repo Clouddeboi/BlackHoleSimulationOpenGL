@@ -619,11 +619,13 @@ void Renderer::initBloomTextures() {
     glGenFramebuffers(1, &m_bloomExtractFBO);
     glBindFramebuffer(GL_FRAMEBUFFER, m_bloomExtractFBO);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_bloomExtractTex, 0);
+    GLHelpers::checkFramebufferComplete("BloomExtract");
 
     glGenFramebuffers(2, m_bloomBlurFBO);
     for (int i = 0; i < 2; ++i) {
         glBindFramebuffer(GL_FRAMEBUFFER, m_bloomBlurFBO[i]);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_bloomBlurTex[i], 0);
+        GLHelpers::checkFramebufferComplete("BloomBlur[" + std::to_string(i) + "]");
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
