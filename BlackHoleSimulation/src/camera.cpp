@@ -3,6 +3,7 @@
 */
 
 #include "../headers/camera.hpp"
+#include "../headers/constants.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #include <GLFW/glfw3.h>
 #include <iostream>
@@ -26,7 +27,7 @@ void Camera::update(float deltaTime) {
     if (!window) return;
 
     //Speed boost with Left Shift
-    float speedMultiplier = (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) ? 4.0f : 1.0f;
+    float speedMultiplier = (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) ? BlackHoleConstants::kCameraSpeedMultiplier : 1.0f;
     float velocity = m_speed * speedMultiplier * deltaTime;
 
 	//WASD for forward/backward/left/right

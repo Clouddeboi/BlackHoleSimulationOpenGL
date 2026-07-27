@@ -4,6 +4,7 @@
 
 #include "../headers/grid.hpp"
 #include "../headers/glHelpers.hpp"
+#include "../headers/constants.hpp"
 #include <vector>
 
 Grid3D::Grid3D(float min, float max, float spacing, float bhRadius)
@@ -11,7 +12,7 @@ Grid3D::Grid3D(float min, float max, float spacing, float bhRadius)
 {
     //More physical well
     //y = -wellDepth / r (Newtonian/Schwarzschild-like)
-    float wellDepth = bhRadius * 5.0f;
+    float wellDepth = bhRadius * BlackHoleConstants::kGridWellDepthMultiplier;
 
 	//Store vertices in a vector
     std::vector<glm::vec3> vertices;

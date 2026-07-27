@@ -16,6 +16,7 @@
 #include <stb_image.h>
 #include "stb_easy_font.h"
 #include "../headers/grid.hpp"
+#include "../headers/constants.hpp"
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
@@ -179,12 +180,10 @@ Renderer::Renderer(int width, int height)
 
     //Schwarzschild radius calculation for a real black hole
     //Physical constants:
-    constexpr double G = 6.67430e-11;//Gravitational constant (m^3 kg^-1 s^-2)
-    constexpr double c = 2.99792458e8;//Speed of light in vacuum (m/s)
-    constexpr double solarMass = 1.98847e30;//Mass of the sun (kg)
+    using namespace BlackHoleConstants;
 
-	//Black hole mass (in kg) (5 solar masses)
-    m_bhMass = 5.0 * solarMass;
+    //Black hole mass (in kg)
+    m_bhMass = kBlackHoleMassSolarMasses * kSolarMass;
 
     //Schwarzschild radius formula:
     //r_s = 2 * G * M / c^2
@@ -192,10 +191,10 @@ Renderer::Renderer(int width, int height)
     //- G: gravitational constant
     //- M: black hole mass (kg)
     //- c: speed of light (m/s)
-    double rs_meters = 2.0 * G * m_bhMass / (c * c);
+    double rs_meters = 2.0 * kGravitationalConstant * m_bhMass / (kSpeedOfLight * kSpeedOfLight);
 
     //Simulation scale factor to convert meters to simulation units
-    scale = 0.0001016;
+    scale = kSimulationScale;
 
     //convert to simulation units
     bhRadiusSim = static_cast<float>(rs_meters * scale);
@@ -232,7 +231,7 @@ Renderer::Renderer(int width, int height)
     m_planets.push_back(mars);
 
     //Setup grid
-    m_grid = std::make_unique<Grid3D>(-50.0f, 50.0f, 1.0f, bhRadiusSim);
+    m_grid = std::make_unique<Grid3D>(kGridMin, kGridMax, kGridSpacing, bhRadiusSim); 
 }
 
 //Get the list of planets
@@ -372,8 +371,8 @@ void Renderer::render(const Camera& camera, float fps) {
 
 	//Set up accretion disk parameters
     DiskBlock diskBlock;
-    diskBlock.diskInnerRadius = bhRadiusSim * 3.0f;
-    diskBlock.diskOuterRadius = bhRadiusSim * 10.0f;
+    diskBlock.diskInnerRadius = bhRadiusSim * BlackHoleConstants::kDiskInnerRadiusMultiplier;
+    diskBlock.diskOuterRadius = bhRadiusSim * BlackHoleConstants::kDiskOuterRadiusMultiplier;
     diskBlock.diskColor = glm::vec3(1.0f, 0.7f, 0.2f);
     diskBlock._pad = 0.0f;
 
@@ -383,7 +382,7 @@ void Renderer::render(const Camera& camera, float fps) {
 
 	//Update planet positions based on time
 	//For demo purposes, we fake circular orbits
-    const double timeScale = 31557600.0 / 60.0;//1 year in 1 minute
+    const double timeScale = BlackHoleConstants::kTimeScaleYearToMinute;
     double simTime = double(time) * timeScale;
     for (auto& p : m_planets) {
         if (p.orbitRadius > 0.0 && p.orbitSpeed > 0.0) {
@@ -543,7 +542,7 @@ void Renderer::render(const Camera& camera, float fps) {
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, m_renderTex);
     glUniform1i(glGetUniformLocation(m_bloomExtractShader, "uRenderTex"), 0);
-    glUniform1f(glGetUniformLocation(m_bloomExtractShader, "uThreshold"), 0.1f);
+    glUniform1f(glGetUniformLocation(m_bloomExtractShader, "uThreshold"), BlackHoleConstants::kBloomThreshold);
     glBindVertexArray(m_quadVAO);
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
@@ -574,7 +573,7 @@ void Renderer::render(const Camera& camera, float fps) {
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, m_bloomBlurTex[!horizontal]);
     glUniform1i(glGetUniformLocation(m_shaderProgram, "uBloomTex"), 1);
-    glUniform1f(glGetUniformLocation(m_shaderProgram, "uBloomStrength"), 0.0f);
+    glUniform1f(glGetUniformLocation(m_shaderProgram, "uBloomStrength"), BlackHoleConstants::kBloomStrength);
     glBindVertexArray(m_quadVAO);
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 

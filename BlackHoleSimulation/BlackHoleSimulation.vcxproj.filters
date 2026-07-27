@@ -178,5 +178,8 @@
     <ClInclude Include="headers\debug.hpp">
       <Filter>headers</Filter>
     </ClInclude>
+    <ClInclude Include="headers\constants.hpp">
+      <Filter>headers</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

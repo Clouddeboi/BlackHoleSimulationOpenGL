@@ -58,6 +58,7 @@
   <ItemGroup>
     <ClInclude Include="headers\app.hpp" />
     <ClInclude Include="headers\camera.hpp" />
+    <ClInclude Include="headers\constants.hpp" />
     <ClInclude Include="headers\debug.hpp" />
     <ClInclude Include="headers\glHelpers.hpp" />
     <ClInclude Include="headers\grid.hpp" />
