@@ -80,12 +80,6 @@
     <None Include="shaders\blackHole\shader.vert">
       <Filter>shaders\blackHole</Filter>
     </None>
-    <None Include="shaders\ray\shader.vert">
-      <Filter>shaders\ray</Filter>
-    </None>
-    <None Include="shaders\ray\shader.frag">
-      <Filter>shaders\ray</Filter>
-    </None>
     <None Include="shaders\grid\shader.frag">
       <Filter>shaders\grid</Filter>
     </None>
@@ -180,6 +174,9 @@
     </ClInclude>
     <ClInclude Include="include\stb_easy_font.h">
       <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="headers\debug.hpp">
+      <Filter>headers</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -1,88 +1,152 @@
 /*
-	Utility functions for loading and compiling OpenGL shaders.
+    Utility functions for loading and compiling OpenGL shaders.
 */
 
 #include "../headers/glHelpers.hpp"
 #include <fstream>
 #include <sstream>
+#include <stdexcept>
 #include <iostream>
+#include <stb_image.h>
 
-// Utility: read file contents
-static std::string readFile(const std::string& path) {
+//===== File I/O =====
+
+std::string GLHelpers::loadTextFile(const std::string& path) {
     std::ifstream file(path);
     if (!file.is_open()) {
-        std::cerr << "Failed to open shader file: " << path << std::endl;
-        return "";
+        throw std::runtime_error("Failed to open file: " + path);
     }
     std::stringstream ss;
     ss << file.rdbuf();
     return ss.str();
 }
 
-// Load and compile vertex and fragment shaders, link into a program
-GLuint GLHelpers::loadShaderProgram(const std::string& vertPath, const std::string& fragPath) {
-	//Read vertex and fragment shader source
-    std::string vsrc = readFile(vertPath);
-    std::string fsrc = readFile(fragPath);
+//===== Shader Compilation =====
 
-	//Convert to C-style strings for OpenGL
-    const char* vsrcC = vsrc.c_str();
-    const char* fsrcC = fsrc.c_str();
+GLuint GLHelpers::compileShader(GLenum type, const std::string& source, const std::string& debugName) {
+    GLuint shader = glCreateShader(type);
+    const char* src = source.c_str();
+    glShaderSource(shader, 1, &src, nullptr);
+    glCompileShader(shader);
 
-	//Create and compile vertex shader
-    GLuint vs = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vs, 1, &vsrcC, nullptr);
-    glCompileShader(vs);
+    //Check compilation status
+    GLint success;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        GLchar infoLog[1024];
+        glGetShaderInfoLog(shader, 1024, nullptr, infoLog);
 
-	//Create and compile fragment shader
-    GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fs, 1, &fsrcC, nullptr);
-    glCompileShader(fs);
+        //Determine shader type name
+        const char* typeStr = (type == GL_VERTEX_SHADER) ? "VERTEX" :
+            (type == GL_FRAGMENT_SHADER) ? "FRAGMENT" :
+            (type == GL_COMPUTE_SHADER) ? "COMPUTE" : "UNKNOWN";
 
-	//Check for compilation errors
-    GLuint prog = glCreateProgram();
+        std::string msg = "Shader compilation failed [" + std::string(typeStr) + "]";
+        if (!debugName.empty()) {
+            msg += " (" + debugName + ")";
+        }
+        msg += ":\n" + std::string(infoLog);
 
-	//Attach and link shaders
-    glAttachShader(prog, vs);
-    glAttachShader(prog, fs);
-    glLinkProgram(prog);
+        glDeleteShader(shader);
+        throw std::runtime_error(msg);
+    }
 
-	//Delete shaders after linking
-    glDeleteShader(vs);
-    glDeleteShader(fs);
-
-	//Return Program ID
-    return prog;
+    return shader;
 }
 
-//Load, compile, and link a compute shader
-GLuint GLHelpers::loadComputeShader(const std::string& compPath) {
-    std::string csrc = readFile(compPath);
-    const char* csrcC = csrc.c_str();
+//===== Program Linking =====
 
-    GLuint cs = glCreateShader(GL_COMPUTE_SHADER);
-    glShaderSource(cs, 1, &csrcC, nullptr);
-    glCompileShader(cs);
+GLuint GLHelpers::linkProgram(const std::vector<GLuint>& shaders, const std::string& debugName) {
+    GLuint program = glCreateProgram();
 
+    //Attach all shaders
+    for (GLuint shader : shaders) {
+        glAttachShader(program, shader);
+    }
+
+    //Link program
+    glLinkProgram(program);
+
+    //Check linking status
     GLint success;
-    glGetShaderiv(cs, GL_COMPILE_STATUS, &success);
+    glGetProgramiv(program, GL_LINK_STATUS, &success);
     if (!success) {
-        char infoLog[512];
-        glGetShaderInfoLog(cs, 512, nullptr, infoLog);
-        std::cerr << "Compute shader compile error:\n" << infoLog << std::endl;
+        GLchar infoLog[1024];
+        glGetProgramInfoLog(program, 1024, nullptr, infoLog);
+
+        std::string msg = "Shader program linking failed";
+        if (!debugName.empty()) {
+            msg += " (" + debugName + ")";
+        }
+        msg += ":\n" + std::string(infoLog);
+
+        glDeleteProgram(program);
+        throw std::runtime_error(msg);
     }
 
-    GLuint prog = glCreateProgram();
-    glAttachShader(prog, cs);
-    glLinkProgram(prog);
+    return program;
+}
 
-    glGetProgramiv(prog, GL_LINK_STATUS, &success);
-    if (!success) {
-        char infoLog[512];
-        glGetProgramInfoLog(prog, 512, nullptr, infoLog);
-        std::cerr << "Compute shader link error:\n" << infoLog << std::endl;
+//===== Convenience Functions =====
+
+GLuint GLHelpers::loadShaderProgram(const std::string& vertPath, const std::string& fragPath) {
+    //Load shader source files
+    std::string vertSrc = loadTextFile(vertPath);
+    std::string fragSrc = loadTextFile(fragPath);
+
+    //Compile shaders
+    GLuint vertShader = compileShader(GL_VERTEX_SHADER, vertSrc, vertPath);
+    GLuint fragShader = compileShader(GL_FRAGMENT_SHADER, fragSrc, fragPath);
+
+    //Link program
+    GLuint program = linkProgram({ vertShader, fragShader }, vertPath + " + " + fragPath);
+
+    //Clean up shaders (no longer needed after linking)
+    glDeleteShader(vertShader);
+    glDeleteShader(fragShader);
+
+    return program;
+}
+
+GLuint GLHelpers::loadComputeShader(const std::string& compPath) {
+    //Load shader source
+    std::string computeSrc = loadTextFile(compPath);
+
+    //Compile shader
+    GLuint computeShader = compileShader(GL_COMPUTE_SHADER, computeSrc, compPath);
+
+    //Link program
+    GLuint program = linkProgram({ computeShader }, compPath);
+
+    //Clean up shader
+    glDeleteShader(computeShader);
+
+    return program;
+}
+
+//===== Texture Loading =====
+
+GLuint GLHelpers::loadTexture(const std::string& path) {
+    int width, height, channels;
+    unsigned char* data = stbi_load(path.c_str(), &width, &height, &channels, 4); //Force RGBA
+
+    if (!data) {
+        throw std::runtime_error("Failed to load texture: " + path);
     }
 
-    glDeleteShader(cs);
-    return prog;
+    GLuint texture;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+
+    //Default texture parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+    stbi_image_free(data);
+
+    return texture;
 }

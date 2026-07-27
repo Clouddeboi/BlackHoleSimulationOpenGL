@@ -6,6 +6,7 @@
 #include "../headers/app.hpp"
 #include "../headers/renderer.hpp"
 #include "../headers/camera.hpp"
+#include "../headers/debug.hpp"
 #include <stdexcept>
 #include <iostream>
 
@@ -85,11 +86,14 @@ void App::initGLFW() {
 
 //----------------- Init GLAD -----------------
 void App::initGLAD() {
-	//Load OpenGL functions using GLAD
+    //Load OpenGL functions using GLAD
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
         throw std::runtime_error("Failed to initialize GLAD!");
     }
     std::cout << "OpenGL version: " << glGetString(GL_VERSION) << std::endl;
+
+    //Enable OpenGL debug output (debug builds only)
+    GLDebug::enable();
 }
 
 //----------------- Input -----------------

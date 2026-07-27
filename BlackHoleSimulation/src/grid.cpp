@@ -3,36 +3,8 @@
 */
 
 #include "../headers/grid.hpp"
+#include "../headers/glHelpers.hpp"
 #include <vector>
-#include <string>
-#include <fstream>
-#include <sstream>
-#include <stdexcept>
-
-//Simple shader loader
-static std::string loadFile(const std::string& path) {
-    std::ifstream file(path);
-    if (!file.is_open()) throw std::runtime_error("Failed to open file: " + path);
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    return buffer.str();
-}
-
-//Compile a shader of given type from source
-static GLuint compileShader(GLenum type, const std::string& src) {
-    GLuint shader = glCreateShader(type);
-    const char* csrc = src.c_str();
-    glShaderSource(shader, 1, &csrc, nullptr);
-    glCompileShader(shader);
-    int success;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        char info[512];
-        glGetShaderInfoLog(shader, 512, nullptr, info);
-        throw std::runtime_error("Shader compile error: " + std::string(info));
-    }
-    return shader;
-}
 
 Grid3D::Grid3D(float min, float max, float spacing, float bhRadius)
     : m_vao(0), m_vbo(0), m_vertexCount(0), m_shaderProgram(0)
@@ -91,24 +63,9 @@ Grid3D::~Grid3D() {
 }
 
 //----------------- Init Shader -----------------
+//----------------- Init Shader -----------------
 void Grid3D::initShader() {
-    std::string vertSrc = loadFile("shaders/grid/shader.vert");
-    std::string fragSrc = loadFile("shaders/grid/shader.frag");
-    GLuint vert = compileShader(GL_VERTEX_SHADER, vertSrc);
-    GLuint frag = compileShader(GL_FRAGMENT_SHADER, fragSrc);
-    m_shaderProgram = glCreateProgram();
-    glAttachShader(m_shaderProgram, vert);
-    glAttachShader(m_shaderProgram, frag);
-    glLinkProgram(m_shaderProgram);
-    int success;
-    glGetProgramiv(m_shaderProgram, GL_LINK_STATUS, &success);
-    if (!success) {
-        char info[512];
-        glGetProgramInfoLog(m_shaderProgram, 512, nullptr, info);
-        throw std::runtime_error("Shader linking error: " + std::string(info));
-    }
-    glDeleteShader(vert);
-    glDeleteShader(frag);
+    m_shaderProgram = GLHelpers::loadShaderProgram("shaders/grid/shader.vert", "shaders/grid/shader.frag");
 }
 
 //----------------- Draw -----------------

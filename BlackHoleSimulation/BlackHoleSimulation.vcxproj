@@ -40,8 +40,6 @@
     <None Include="shaders\geodesic.comp" />
     <None Include="shaders\grid\shader.frag" />
     <None Include="shaders\grid\shader.vert" />
-    <None Include="shaders\ray\shader.frag" />
-    <None Include="shaders\ray\shader.vert" />
     <None Include="shaders\skybox\skybox.frag" />
     <None Include="shaders\skybox\skybox.vert" />
     <None Include="vcpkg.json" />
@@ -60,6 +58,7 @@
   <ItemGroup>
     <ClInclude Include="headers\app.hpp" />
     <ClInclude Include="headers\camera.hpp" />
+    <ClInclude Include="headers\debug.hpp" />
     <ClInclude Include="headers\glHelpers.hpp" />
     <ClInclude Include="headers\grid.hpp" />
     <ClInclude Include="headers\physics.hpp" />
@@ -104,7 +103,7 @@
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
-<Import Project="$(VcpkgProps)" Condition="Exists('$(VcpkgProps)')" />
+  <Import Project="$(VcpkgProps)" Condition="Exists('$(VcpkgProps)')" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
   <ImportGroup Label="Shared">
@@ -122,16 +121,16 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-<PropertyGroup Label="Vcpkg">
+  <PropertyGroup Label="Vcpkg">
     <VcpkgEnableManifest>true</VcpkgEnableManifest>
-</PropertyGroup>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-       <AdditionalIncludeDirectories>$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -146,7 +145,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-       <AdditionalIncludeDirectories>$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -159,21 +158,21 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-       <AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>
 $(ProjectDir)include;
 $(ProjectDir)vcpkg_installed\x64-windows\include;
 %(AdditionalIncludeDirectories)
 </AdditionalIncludeDirectories>
     </ClCompile>
-<Link>
-    <SubSystem>Console</SubSystem>
-    <GenerateDebugInformation>true</GenerateDebugInformation>
-    <AdditionalIncludeDirectories>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalIncludeDirectories>
 $(ProjectDir)include;
 $(ProjectDir)vcpkg_installed\x64-windows\include;
 %(AdditionalIncludeDirectories)
 </AdditionalIncludeDirectories>
-</Link>
+    </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -183,17 +182,17 @@ $(ProjectDir)vcpkg_installed\x64-windows\include;
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-       <AdditionalIncludeDirectories>$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
-<Link>
-    <SubSystem>Console</SubSystem>
-    <GenerateDebugInformation>true</GenerateDebugInformation>
-    <AdditionalDependencies>glfw3dll.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-    <AdditionalLibraryDirectories>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>glfw3dll.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>
         $(ProjectDir)vcpkg_installed\x64-windows\lib;
         %(AdditionalLibraryDirectories)
     </AdditionalLibraryDirectories>
-</Link>
+    </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

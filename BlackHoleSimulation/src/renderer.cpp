@@ -83,6 +83,13 @@ Renderer::Renderer(int width, int height)
 
     glGenBuffers(1, &m_planetSSBO);
 
+    //Create planet UBO
+    glGenBuffers(1, &m_planetUBO);
+    glBindBuffer(GL_UNIFORM_BUFFER, m_planetUBO);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(PlanetBlock), nullptr, GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_UNIFORM_BUFFER, 3, m_planetUBO);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
     glGenBuffers(1, &m_diskUBO);
     glBindBuffer(GL_UNIFORM_BUFFER, m_diskUBO);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(DiskBlock), nullptr, GL_DYNAMIC_DRAW);
@@ -90,6 +97,8 @@ Renderer::Renderer(int width, int height)
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
 	//Setup planets
+    glUseProgram(m_computeShader);
+
     for (size_t i = 0; i < m_planets.size(); ++i) {
         const Planet& planet = m_planets[i];
 
@@ -109,6 +118,8 @@ Renderer::Renderer(int width, int height)
         glBindTexture(GL_TEXTURE_2D, planet.texture);
         glUniform1i(glGetUniformLocation(m_computeShader, "uPlanetTex"), 7 + static_cast<GLint>(i));
     }
+
+    glUseProgram(0);
 
     //Time UBO (for animation)
     glGenBuffers(1, &m_timeUBO);
@@ -209,7 +220,7 @@ Renderer::Renderer(int width, int height)
     earth.radius = 6378.0f * scale;
     earth.color = glm::vec3(1.0f);
     earth.texturePath = "textures/planets/earthTexture.jpg";
-    earth.texture = loadTexture(earth.texturePath);
+    earth.texture = GLHelpers::loadTexture(earth.texturePath);
     m_planets.push_back(earth);
 
     Planet mars;
@@ -217,7 +228,7 @@ Renderer::Renderer(int width, int height)
     mars.radius = 3389.5f * scale;
     mars.color = glm::vec3(1.0f, 0.5f, 0.3f);
     mars.texturePath = "textures/planets/marsTexture.jpg";
-    mars.texture = loadTexture(mars.texturePath);
+    mars.texture = GLHelpers::loadTexture(mars.texturePath);
     m_planets.push_back(mars);
 
     //Setup grid
@@ -321,36 +332,11 @@ void Renderer::initFullscreenQuad() {
 //----------------- Shaders -----------------
 //Load and compile shaders
 void Renderer::initShaders() {
-    std::string vertSrc = loadFile("shaders/blit.vert");
-    std::string fragSrc = loadFile("shaders/blit.frag");
+    //Main blit shader (for final composition)
+    m_shaderProgram = GLHelpers::loadShaderProgram("shaders/blit.vert", "shaders/blit.frag");
 
-    unsigned int vert = compileShader(GL_VERTEX_SHADER, vertSrc);
-    unsigned int frag = compileShader(GL_FRAGMENT_SHADER, fragSrc);
-
-    m_shaderProgram = glCreateProgram();
-    glAttachShader(m_shaderProgram, vert);
-    glAttachShader(m_shaderProgram, frag);
-    glLinkProgram(m_shaderProgram);
-
-    int success;
-    glGetProgramiv(m_shaderProgram, GL_LINK_STATUS, &success);
-    if (!success) {
-        char info[512];
-        glGetProgramInfoLog(m_shaderProgram, 512, nullptr, info);
-        throw std::runtime_error("Shader linking error: " + std::string(info));
-    }
-
-    //Load and compile debug text shaders
-    std::string textVertSrc = loadFile("shaders/debugtext/text.vert");
-    std::string textFragSrc = loadFile("shaders/debugtext/text.frag");
-    GLuint textVert = compileShader(GL_VERTEX_SHADER, textVertSrc);
-    GLuint textFrag = compileShader(GL_FRAGMENT_SHADER, textFragSrc);
-    m_debugTextShader = glCreateProgram();
-    glAttachShader(m_debugTextShader, textVert);
-    glAttachShader(m_debugTextShader, textFrag);
-    glLinkProgram(m_debugTextShader);
-    glDeleteShader(textVert);
-    glDeleteShader(textFrag);
+    //Debug text shader
+    m_debugTextShader = GLHelpers::loadShaderProgram("shaders/debugtext/text.vert", "shaders/debugtext/text.frag");
 
     //Create VAO/VBO for text
     glGenVertexArrays(1, &m_debugTextVAO);
@@ -363,33 +349,10 @@ void Renderer::initShaders() {
     glBindVertexArray(0);
 
     //Bloom extract shader
-    std::string extractFrag = loadFile("shaders/bloomExtract.frag");
-    m_bloomExtractShader = glCreateProgram();
-    {
-        unsigned int vert2 = compileShader(GL_VERTEX_SHADER, vertSrc);
-        unsigned int frag2 = compileShader(GL_FRAGMENT_SHADER, extractFrag);
-        glAttachShader(m_bloomExtractShader, vert2);
-        glAttachShader(m_bloomExtractShader, frag2);
-        glLinkProgram(m_bloomExtractShader);
-        glDeleteShader(vert2);
-        glDeleteShader(frag2);
-    }
+    m_bloomExtractShader = GLHelpers::loadShaderProgram("shaders/blit.vert", "shaders/bloomExtract.frag");
 
     //Bloom blur shader
-    std::string blurFrag = loadFile("shaders/bloomBlur.frag");
-    m_bloomBlurShader = glCreateProgram();
-    {
-        unsigned int vert2 = compileShader(GL_VERTEX_SHADER, vertSrc);
-        unsigned int frag2 = compileShader(GL_FRAGMENT_SHADER, blurFrag);
-        glAttachShader(m_bloomBlurShader, vert2);
-        glAttachShader(m_bloomBlurShader, frag2);
-        glLinkProgram(m_bloomBlurShader);
-        glDeleteShader(vert2);
-        glDeleteShader(frag2);
-    }
-
-    glDeleteShader(vert);
-    glDeleteShader(frag);
+    m_bloomBlurShader = GLHelpers::loadShaderProgram("shaders/blit.vert", "shaders/bloomBlur.frag");
 }
 
 //----------------- Render -----------------
@@ -447,6 +410,8 @@ void Renderer::render(const Camera& camera, float fps) {
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(PlanetBlock), &planetBlock);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
+    glUseProgram(m_computeShader);
+
     glActiveTexture(GL_TEXTURE5);//Use texture unit 5
     glBindTexture(GL_TEXTURE_2D, m_smokeTex);
     glUniform1i(glGetUniformLocation(m_computeShader, "uSmokeTex"), 5);
@@ -454,6 +419,7 @@ void Renderer::render(const Camera& camera, float fps) {
     glActiveTexture(GL_TEXTURE6); //Use texture unit 6
     glBindTexture(GL_TEXTURE_CUBE_MAP, m_skyboxTex);
     glUniform1i(glGetUniformLocation(m_computeShader, "uSkybox"), 6);
+
 
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
