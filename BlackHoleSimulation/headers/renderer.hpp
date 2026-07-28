@@ -42,6 +42,9 @@ public:
     const std::vector<Planet>& getPlanets() const;
     void toggleDebugText() { m_showDebugText = !m_showDebugText; }
 
+    bool isGridVisible() const { return m_showGrid; }
+    bool isDebugTextVisible() const { return m_showDebugText; }
+
 private:
     int m_width, m_height;
 
