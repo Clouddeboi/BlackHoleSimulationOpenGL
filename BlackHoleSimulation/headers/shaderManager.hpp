@@ -1,28 +1,30 @@
 #pragma once
-#include <glad/glad.h>
 #include <string>
 #include <unordered_map>
+#include <glad/glad.h>
 
-//Provides centralized shader loading, compilation, and uniform location caching, 
-//shaders are loaded once and can be reused by name. Manages GPU resources and prevents copying.
 class ShaderManager {
 public:
     ShaderManager() = default;
     ~ShaderManager();
 
-    //Prevent copying (manages GPU resources)
+    //Prevent copying
     ShaderManager(const ShaderManager&) = delete;
     ShaderManager& operator=(const ShaderManager&) = delete;
 
+    //Load and cache shader programs
     GLuint loadShaderProgram(const std::string& name, const std::string& vertPath, const std::string& fragPath);
     GLuint loadComputeShader(const std::string& name, const std::string& compPath);
 
+    //Retrieve cached shaders
     GLuint getShader(const std::string& name) const;
+    bool hasShader(const std::string& name) const;
+
+    //Uniform location caching
     GLint getUniformLocation(const std::string& shaderName, const std::string& uniformName);
 
+    //Shader binding helpers
     void useShader(const std::string& name);
-
-    //Unbind any shader program
     void unbindShader();
 
 private:

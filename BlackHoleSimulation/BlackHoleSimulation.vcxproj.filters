@@ -72,6 +72,18 @@
     <ClCompile Include="src\glad.c">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\shaderManager.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\textureManager.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\bloomEffect.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\debugOverlay.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\blackHole\shader.frag">
@@ -179,6 +191,18 @@
       <Filter>headers</Filter>
     </ClInclude>
     <ClInclude Include="headers\constants.hpp">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="headers\shaderManager.hpp">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="headers\textureManager.hpp">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="headers\bloomEffect.hpp">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="headers\debugOverlay.hpp">
       <Filter>headers</Filter>
     </ClInclude>
   </ItemGroup>

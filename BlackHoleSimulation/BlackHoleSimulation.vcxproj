@@ -20,13 +20,17 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\app.cpp" />
+    <ClCompile Include="src\bloomEffect.cpp" />
     <ClCompile Include="src\camera.cpp" />
+    <ClCompile Include="src\debugOverlay.cpp" />
     <ClCompile Include="src\glad.c" />
     <ClCompile Include="src\glHelpers.cpp" />
     <ClCompile Include="src\grid.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\physics.cpp" />
     <ClCompile Include="src\renderer.cpp" />
+    <ClCompile Include="src\shaderManager.cpp" />
+    <ClCompile Include="src\textureManager.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="bloomExtract.frag" />
@@ -57,13 +61,17 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="headers\app.hpp" />
+    <ClInclude Include="headers\bloomEffect.hpp" />
     <ClInclude Include="headers\camera.hpp" />
     <ClInclude Include="headers\constants.hpp" />
     <ClInclude Include="headers\debug.hpp" />
+    <ClInclude Include="headers\debugOverlay.hpp" />
     <ClInclude Include="headers\glHelpers.hpp" />
     <ClInclude Include="headers\grid.hpp" />
     <ClInclude Include="headers\physics.hpp" />
     <ClInclude Include="headers\renderer.hpp" />
+    <ClInclude Include="headers\shaderManager.hpp" />
+    <ClInclude Include="headers\textureManager.hpp" />
     <ClInclude Include="include\glad\glad.h" />
     <ClInclude Include="include\KHR\khrplatform.h" />
     <ClInclude Include="include\stb_easy_font.h" />
