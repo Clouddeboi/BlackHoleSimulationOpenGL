@@ -183,7 +183,7 @@ Renderer::Renderer(int width, int height)
     using namespace BlackHoleConstants;
 
     //Black hole mass (in kg)
-    m_bhMass = kBlackHoleMassSolarMasses * kSolarMass;
+    m_blackHoleMass = kBlackHoleMassSolarMasses * kSolarMass;
 
     //Schwarzschild radius formula:
     //r_s = 2 * G * M / c^2
@@ -191,18 +191,18 @@ Renderer::Renderer(int width, int height)
     //- G: gravitational constant
     //- M: black hole mass (kg)
     //- c: speed of light (m/s)
-    double rs_meters = 2.0 * kGravitationalConstant * m_bhMass / (kSpeedOfLight * kSpeedOfLight);
+    double rs_meters = 2.0 * kGravitationalConstant * m_blackHoleMass / (kSpeedOfLight * kSpeedOfLight);
 
     //Simulation scale factor to convert meters to simulation units
-    scale = kSimulationScale;
+    m_simulationScale = kSimulationScale;
 
     //convert to simulation units
-    bhRadiusSim = static_cast<float>(rs_meters * scale);
+    m_blackHoleRadiusSim = static_cast<float>(rs_meters * m_simulationScale);
 
 	//!!!!FAKE ORBITING PLANETS FOR DEMO PURPOSES!!!!
     //Calculate ISCO (innermost stable circular orbit) for this black hole
     //double isco_radius_m = 3.0 * rs_meters;//meters
-    //double isco_radius_sim = isco_radius_m * scale;//simulation units
+    //double isco_radius_sim = isco_radius_m * m_simulationScale;//simulation units
 
     //double earth_radius_m = 1.496e11; //1 AU in meters
     //double v_earth = sqrt(G * m_bhMass / earth_radius_m);
@@ -216,7 +216,7 @@ Renderer::Renderer(int width, int height)
     //earth.orbitPhase = 0.0;
     //earth.orbitInclination = 0.0;
     earth.position = glm::vec3(0.0f, 0.0f, -90.0f);
-    earth.radius = 6378.0f * scale;
+    earth.radius = 6378.0f * m_simulationScale;
     earth.color = glm::vec3(1.0f);
     earth.texturePath = "textures/planets/earthTexture.jpg";
     earth.texture = GLHelpers::loadTexture(earth.texturePath);
@@ -224,14 +224,14 @@ Renderer::Renderer(int width, int height)
 
     Planet mars;
     mars.position = glm::vec3(-15.0f, 0.0f, -90.0f);
-    mars.radius = 3389.5f * scale;
+    mars.radius = 3389.5f * m_simulationScale;
     mars.color = glm::vec3(1.0f, 0.5f, 0.3f);
     mars.texturePath = "textures/planets/marsTexture.jpg";
     mars.texture = GLHelpers::loadTexture(mars.texturePath);
     m_planets.push_back(mars);
 
     //Setup grid
-    m_grid = std::make_unique<Grid3D>(kGridMin, kGridMax, kGridSpacing, bhRadiusSim); 
+    m_grid = std::make_unique<Grid3D>(kGridMin, kGridMax, kGridSpacing, m_blackHoleRadiusSim);
 }
 
 //Get the list of planets
@@ -371,8 +371,8 @@ void Renderer::render(const Camera& camera, float fps) {
 
 	//Set up accretion disk parameters
     DiskBlock diskBlock;
-    diskBlock.diskInnerRadius = bhRadiusSim * BlackHoleConstants::kDiskInnerRadiusMultiplier;
-    diskBlock.diskOuterRadius = bhRadiusSim * BlackHoleConstants::kDiskOuterRadiusMultiplier;
+    diskBlock.diskInnerRadius = m_blackHoleRadiusSim * BlackHoleConstants::kDiskInnerRadiusMultiplier;
+    diskBlock.diskOuterRadius = m_blackHoleRadiusSim * BlackHoleConstants::kDiskOuterRadiusMultiplier;
     diskBlock.diskColor = glm::vec3(1.0f, 0.7f, 0.2f);
     diskBlock._pad = 0.0f;
 
@@ -439,12 +439,12 @@ void Renderer::render(const Camera& camera, float fps) {
     debugLines.push_back("\n");
 
     debugLines.push_back("BlackHole Info");
-    debugLines.push_back(tab + "Black Hole Radius: " + std::to_string(bhRadiusSim));
-    debugLines.push_back(tab + "Black Hole Mass: " + std::to_string(m_bhMass) + " kg");
+    debugLines.push_back(tab + "Black Hole Radius: " + std::to_string(m_simulationScale));
+    debugLines.push_back(tab + "Black Hole Mass: " + std::to_string(m_blackHoleMass) + " kg");
     debugLines.push_back("\n");
 
     debugLines.push_back("Simulation Info");
-    debugLines.push_back(tab + "Simulation Scale Factor:" + std::to_string(scale));
+    debugLines.push_back(tab + "Simulation Scale Factor:" + std::to_string(m_simulationScale));
     debugLines.push_back("\n");
 
     debugLines.push_back("Planet Info");
@@ -509,7 +509,7 @@ void Renderer::render(const Camera& camera, float fps) {
     //Update Black Hole UBO
     BlackHoleUBO bhData;
     bhData.bhPosition = glm::vec3(0.0f, 0.0f, 0.0f);
-    bhData.bhRadius = bhRadiusSim;
+    bhData.bhRadius = m_blackHoleRadiusSim;
 
     glBindBuffer(GL_UNIFORM_BUFFER, m_blackHoleUBO);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(BlackHoleUBO), &bhData);

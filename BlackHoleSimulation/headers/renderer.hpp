@@ -77,9 +77,9 @@ private:
     GLuint m_bloomExtractFBO = 0, m_bloomBlurFBO[2] = { 0, 0 };
     GLuint m_bloomExtractShader = 0, m_bloomBlurShader = 0;
 
-	float bhRadiusSim;
-    double m_bhMass;
-    double scale;
+    float m_blackHoleRadiusSim;
+    double m_blackHoleMass;
+    double m_simulationScale;
 
     void initUBO();
     void initBlackHoleUBO();
