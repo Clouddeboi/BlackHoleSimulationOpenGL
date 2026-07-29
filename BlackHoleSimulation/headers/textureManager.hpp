@@ -13,7 +13,7 @@ public:
     TextureManager& operator=(const TextureManager&) = delete;
 
     //Load and cache textures
-    GLuint loadTexture(const std::string& name, const std::string& path);
+    GLuint loadTexture(const std::string& name, const std::string& path, bool sRGB = false);
 
     //Create blank textures for render targets
     GLuint createRenderTexture(const std::string& name, int width, int height, GLenum internalFormat, GLenum format, GLenum type);

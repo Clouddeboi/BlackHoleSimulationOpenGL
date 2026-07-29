@@ -18,7 +18,7 @@ namespace GLHelpers {
     GLuint loadComputeShader(const std::string& compPath);
 
     //Texture loading
-    GLuint loadTexture(const std::string& path);
+    GLuint loadTexture(const std::string& path, bool sRGB = false);
 
     //Framebuffer validation
     void checkFramebufferComplete(const std::string& name);
