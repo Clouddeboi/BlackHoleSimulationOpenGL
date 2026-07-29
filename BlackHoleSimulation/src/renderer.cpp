@@ -1,84 +1,53 @@
 /*
-	Core Rendering logic
-	Sets up OpenGL, shaders, textures
+    Core Rendering logic
+    Sets up OpenGL, shaders, textures
     Handles simulation data
 */
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "../headers/renderer.hpp"
 #include "../headers/glHelpers.hpp"
+#include "../headers/shaderManager.hpp"
+#include "../headers/textureManager.hpp"
+#include "../headers/debugOverlay.hpp"
+#include "../headers/grid.hpp"
+#include "../headers/constants.hpp"
+
 #include <glad/glad.h>
 #include <stdexcept>
 #include <iostream>
-#include <fstream>
-#include <sstream>
 #include <GLFW/glfw3.h>
 #include <stb_image.h>
-#include "stb_easy_font.h"
-#include "../headers/grid.hpp"
-#include "../headers/constants.hpp"
+
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
 
-//Utility function to load shaders
-static std::string loadFile(const std::string& path) {
-    std::ifstream file(path);
-    if (!file.is_open()) throw std::runtime_error("Failed to open file: " + path);
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    return buffer.str();
-}
-
-//Compile a shader of given type from source
-static unsigned int compileShader(unsigned int type, const std::string& src) {
-    unsigned int shader = glCreateShader(type);
-    const char* csrc = src.c_str();
-    glShaderSource(shader, 1, &csrc, nullptr);
-    glCompileShader(shader);
-
-    int success;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        char info[512];
-        glGetShaderInfoLog(shader, 512, nullptr, info);
-        throw std::runtime_error("Shader compile error: " + std::string(info));
-    }
-    return shader;
-}
-
-//Utility to load a texture from file
-static GLuint loadTexture(const std::string& path) {
-    int width, height, channels;
-    unsigned char* data = stbi_load(path.c_str(), &width, &height, &channels, 4);
-    if (!data) throw std::runtime_error("Failed to load texture: " + path);
-
-    GLuint tex;
-    glGenTextures(1, &tex);
-    glBindTexture(GL_TEXTURE_2D, tex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glBindTexture(GL_TEXTURE_2D, 0);
-    stbi_image_free(data);
-    return tex;
-}
-
 //----------------- Constructor -----------------
 Renderer::Renderer(int width, int height)
-    : m_width(width), m_height(height), m_quadVAO(0), m_quadVBO(0), m_shaderProgram(0)
+    : m_width(width), m_height(height), m_quadVAO(0), m_quadVBO(0), m_computeShader(0),
+    m_renderTex(0), m_cameraUBO(0), m_blackHoleUBO(0), m_diskUBO(0), m_planetUBO(0),
+    m_timeUBO(0), m_blackHoleRadiusSim(0.0f), m_blackHoleMass(0.0), m_simulationScale(0.0)
 {
-	//Setup up Quad and shaders for screen-space rendering
+    //Initialize subsystem managers
+    m_shaderMgr = std::make_unique<ShaderManager>();
+    m_textureMgr = std::make_unique<TextureManager>();
+    m_debugOverlay = std::make_unique<DebugOverlay>(width, height, *m_shaderMgr);
+
+    //Setup fullscreen quad and shaders
     initFullscreenQuad();
     initShaders();
 
-    //init compute shader
-    m_computeShader = GLHelpers::loadComputeShader("shaders/geodesic.comp");
+    //Initialize Debug overlay
+    m_debugOverlay->init();
 
-    //init render texture
+    //Init compute shader
+    m_computeShader = m_shaderMgr->loadComputeShader("geodesic", "shaders/geodesic.comp");
+
+    //Init render texture
     initRenderTexture();
-    initBloomTextures();
 
+    //Initialize UBOs
     initUBO();
     initBlackHoleUBO();
 
@@ -97,56 +66,17 @@ Renderer::Renderer(int width, int height)
     glBindBufferBase(GL_UNIFORM_BUFFER, 2, m_diskUBO);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-	//Setup planets
-    glUseProgram(m_computeShader);
-
-    for (size_t i = 0; i < m_planets.size(); ++i) {
-        const Planet& planet = m_planets[i];
-
-        //Set up UBO for this planet
-        PlanetBlock planetBlock;
-        planetBlock.planetPosition = planet.position;
-        planetBlock.planetRadius = planet.radius;
-        planetBlock.planetColor = planet.color;
-        planetBlock._pad = 0.0f;
-
-        glBindBuffer(GL_UNIFORM_BUFFER, m_planetUBO);
-        glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(PlanetBlock), &planetBlock);
-        glBindBuffer(GL_UNIFORM_BUFFER, 0);
-
-        //Bind planet texture to a texture unit (e.g., 7 + i)
-        glActiveTexture(GL_TEXTURE7 + static_cast<GLenum>(i));
-        glBindTexture(GL_TEXTURE_2D, planet.texture);
-        glUniform1i(glGetUniformLocation(m_computeShader, "uPlanetTex"), 7 + static_cast<GLint>(i));
-    }
-
-    glUseProgram(0);
-
     //Time UBO (for animation)
     glGenBuffers(1, &m_timeUBO);
     glBindBuffer(GL_UNIFORM_BUFFER, m_timeUBO);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(float), nullptr, GL_DYNAMIC_DRAW);
-    glBindBufferBase(GL_UNIFORM_BUFFER, 4, m_timeUBO);//binding = 4
+    glBindBufferBase(GL_UNIFORM_BUFFER, 4, m_timeUBO);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-	//Load smoke texture (for accretion disk)
-    int texWidth, texHeight, texChannels;
-    unsigned char* data = stbi_load("textures/smoke/smoke_01.png", &texWidth, &texHeight, &texChannels, 4);//force RGBA
-    if (!data) {
-        throw std::runtime_error("Failed to load smoke texture!");
-    }
-    glGenTextures(1, &m_smokeTex);
-    glBindTexture(GL_TEXTURE_2D, m_smokeTex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, texWidth, texHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glBindTexture(GL_TEXTURE_2D, 0);
-    stbi_image_free(data);
+    //Load smoke texture (for accretion disk)
+    m_textureMgr->loadTexture("smoke", "textures/smoke/smoke_01.png");
 
-    //Cubemap face order: +X, -X, +Y, -Y, +Z, -Z
-	//Load skybox cubemap textures
+    //Load skybox cubemap textures
     std::vector<std::string> faces = {
         "textures/skybox/right.png",
         "textures/skybox/left.png",
@@ -159,18 +89,18 @@ Renderer::Renderer(int width, int height)
     glGenTextures(1, &m_skyboxTex);
     glBindTexture(GL_TEXTURE_CUBE_MAP, m_skyboxTex);
 
-    int nrChannels;
+    int texWidth, texHeight, nrChannels;
     for (GLuint i = 0; i < faces.size(); i++) {
-        unsigned char* data = stbi_load(faces[i].c_str(), &width, &height, &nrChannels, 3);
+        unsigned char* data = stbi_load(faces[i].c_str(), &texWidth, &texHeight, &nrChannels, 3);
         if (data) {
-            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB, texWidth, texHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
             stbi_image_free(data);
         }
         else {
             throw std::runtime_error("Cubemap texture failed to load at path: " + faces[i]);
         }
     }
-    
+
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -178,48 +108,21 @@ Renderer::Renderer(int width, int height)
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
 
-    //Schwarzschild radius calculation for a real black hole
-    //Physical constants:
+    //Schwarzschild radius calculation
     using namespace BlackHoleConstants;
 
-    //Black hole mass (in kg)
     m_blackHoleMass = kBlackHoleMassSolarMasses * kSolarMass;
-
-    //Schwarzschild radius formula:
-    //r_s = 2 * G * M / c^2
-    //- r_s: Schwarzschild radius (meters)
-    //- G: gravitational constant
-    //- M: black hole mass (kg)
-    //- c: speed of light (m/s)
     double rs_meters = 2.0 * kGravitationalConstant * m_blackHoleMass / (kSpeedOfLight * kSpeedOfLight);
-
-    //Simulation scale factor to convert meters to simulation units
     m_simulationScale = kSimulationScale;
-
-    //convert to simulation units
     m_blackHoleRadiusSim = static_cast<float>(rs_meters * m_simulationScale);
 
-	//!!!!FAKE ORBITING PLANETS FOR DEMO PURPOSES!!!!
-    //Calculate ISCO (innermost stable circular orbit) for this black hole
-    //double isco_radius_m = 3.0 * rs_meters;//meters
-    //double isco_radius_sim = isco_radius_m * m_simulationScale;//simulation units
-
-    //double earth_radius_m = 1.496e11; //1 AU in meters
-    //double v_earth = sqrt(G * m_bhMass / earth_radius_m);
-    //double omega_earth = v_earth / earth_radius_m;
-
-
-	//More planets can be added similarly
+    //Create planets
     Planet earth;
-    //earth.orbitRadius = earth_radius_m * scale;//simulation units
-    //earth.orbitSpeed = omega_earth;//radians/sec (real time)
-    //earth.orbitPhase = 0.0;
-    //earth.orbitInclination = 0.0;
     earth.position = glm::vec3(0.0f, 0.0f, -90.0f);
     earth.radius = 6378.0f * m_simulationScale;
     earth.color = glm::vec3(1.0f);
     earth.texturePath = "textures/planets/earthTexture.jpg";
-    earth.texture = GLHelpers::loadTexture(earth.texturePath);
+    earth.texture = m_textureMgr->loadTexture("earth", earth.texturePath);
     m_planets.push_back(earth);
 
     Planet mars;
@@ -227,56 +130,47 @@ Renderer::Renderer(int width, int height)
     mars.radius = 3389.5f * m_simulationScale;
     mars.color = glm::vec3(1.0f, 0.5f, 0.3f);
     mars.texturePath = "textures/planets/marsTexture.jpg";
-    mars.texture = GLHelpers::loadTexture(mars.texturePath);
+    mars.texture = m_textureMgr->loadTexture("mars", mars.texturePath);
     m_planets.push_back(mars);
+
+    //Bind compute shader and setup planet uniforms
+    m_shaderMgr->useShader("geodesic");
+
+    //Planet textures are bound in render() loop, not here
+    m_shaderMgr->unbindShader();
+
+    m_shaderMgr->unbindShader();
 
     //Setup grid
     m_grid = std::make_unique<Grid3D>(kGridMin, kGridMax, kGridSpacing, m_blackHoleRadiusSim);
 }
 
-//Get the list of planets
+//----------------- Get Planets -----------------
 const std::vector<Planet>& Renderer::getPlanets() const {
     return m_planets;
 }
 
 //----------------- Destructor -----------------
 Renderer::~Renderer() {
-    //Shaders
-    glDeleteProgram(m_shaderProgram);
-    glDeleteProgram(m_computeShader);
-    glDeleteProgram(m_debugTextShader);
-    glDeleteProgram(m_bloomExtractShader);
-    glDeleteProgram(m_bloomBlurShader);
+    //Smart pointers clean themselves up automatically
 
     //VAOs and VBOs
-    glDeleteVertexArrays(1, &m_quadVAO);
-    glDeleteBuffers(1, &m_quadVBO);
-    glDeleteVertexArrays(1, &m_debugTextVAO);
-    glDeleteBuffers(1, &m_debugTextVBO);
+    if (m_quadVAO) glDeleteVertexArrays(1, &m_quadVAO);
+    if (m_quadVBO) glDeleteBuffers(1, &m_quadVBO);
 
     //UBOs and SSBOs
-    glDeleteBuffers(1, &m_cameraUBO);
-    glDeleteBuffers(1, &m_blackHoleUBO);
-    glDeleteBuffers(1, &m_diskUBO);
-    glDeleteBuffers(1, &m_planetUBO);
-    glDeleteBuffers(1, &m_planetSSBO);
-    glDeleteBuffers(1, &m_timeUBO);
+    if (m_cameraUBO) glDeleteBuffers(1, &m_cameraUBO);
+    if (m_blackHoleUBO) glDeleteBuffers(1, &m_blackHoleUBO);
+    if (m_diskUBO) glDeleteBuffers(1, &m_diskUBO);
+    if (m_planetUBO) glDeleteBuffers(1, &m_planetUBO);
+    if (m_planetSSBO) glDeleteBuffers(1, &m_planetSSBO);
+    if (m_timeUBO) glDeleteBuffers(1, &m_timeUBO);
 
-    //Textures
-    glDeleteTextures(1, &m_renderTex);
-    glDeleteTextures(1, &m_smokeTex);
-    glDeleteTextures(1, &m_skyboxTex);
-    glDeleteTextures(1, &m_bloomExtractTex);
-    glDeleteTextures(2, m_bloomBlurTex);
+    //Render texture
+    if (m_renderTex) glDeleteTextures(1, &m_renderTex);
 
-    //Framebuffers
-    glDeleteFramebuffers(1, &m_bloomExtractFBO);
-    glDeleteFramebuffers(2, m_bloomBlurFBO);
-
-    //Planet textures
-    for (const auto& planet : m_planets) {
-        glDeleteTextures(1, &planet.texture);
-    }
+    //Skybox
+    if (m_skyboxTex) glDeleteTextures(1, &m_skyboxTex);
 }
 
 //----------------- UBOs -----------------
@@ -284,7 +178,7 @@ void Renderer::initUBO() {
     glGenBuffers(1, &m_cameraUBO);
     glBindBuffer(GL_UNIFORM_BUFFER, m_cameraUBO);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(CameraUBO), nullptr, GL_DYNAMIC_DRAW);
-    glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_cameraUBO);//binding=0
+    glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_cameraUBO);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
@@ -293,7 +187,7 @@ void Renderer::initBlackHoleUBO() {
     glGenBuffers(1, &m_blackHoleUBO);
     glBindBuffer(GL_UNIFORM_BUFFER, m_blackHoleUBO);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(BlackHoleUBO), nullptr, GL_DYNAMIC_DRAW);
-    glBindBufferBase(GL_UNIFORM_BUFFER, 1, m_blackHoleUBO); //binding=1
+    glBindBufferBase(GL_UNIFORM_BUFFER, 1, m_blackHoleUBO);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
@@ -329,35 +223,24 @@ void Renderer::initFullscreenQuad() {
 }
 
 //----------------- Shaders -----------------
-//Load and compile shaders
 void Renderer::initShaders() {
     //Main blit shader (for final composition)
-    m_shaderProgram = GLHelpers::loadShaderProgram("shaders/blit.vert", "shaders/blit.frag");
+    m_shaderMgr->loadShaderProgram("blit", "shaders/blit.vert", "shaders/blit.frag");
+}
 
-    //Debug text shader
-    m_debugTextShader = GLHelpers::loadShaderProgram("shaders/debugtext/text.vert", "shaders/debugtext/text.frag");
-
-    //Create VAO/VBO for text
-    glGenVertexArrays(1, &m_debugTextVAO);
-    glGenBuffers(1, &m_debugTextVBO);
-    glBindVertexArray(m_debugTextVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, m_debugTextVBO);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 16, (void*)0);
-    glEnableVertexAttribArray(0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-
-    //Bloom extract shader
-    m_bloomExtractShader = GLHelpers::loadShaderProgram("shaders/blit.vert", "shaders/bloomExtract.frag");
-
-    //Bloom blur shader
-    m_bloomBlurShader = GLHelpers::loadShaderProgram("shaders/blit.vert", "shaders/bloomBlur.frag");
+//----------------- Render Texture -----------------
+void Renderer::initRenderTexture() {
+    glGenTextures(1, &m_renderTex);
+    glBindTexture(GL_TEXTURE_2D, m_renderTex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, m_width, m_height, 0, GL_RGBA, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 //----------------- Render -----------------
-//Main render function, called every frame
 void Renderer::render(const Camera& camera, float fps) {
-    //Get current time 
+    //Update time UBO
     float time = static_cast<float>(glfwGetTime());
     glBindBuffer(GL_UNIFORM_BUFFER, m_timeUBO);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(float), &time);
@@ -369,7 +252,7 @@ void Renderer::render(const Camera& camera, float fps) {
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(CameraUBO), &data);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-	//Set up accretion disk parameters
+    //Set up accretion disk parameters
     DiskBlock diskBlock;
     diskBlock.diskInnerRadius = m_blackHoleRadiusSim * BlackHoleConstants::kDiskInnerRadiusMultiplier;
     diskBlock.diskOuterRadius = m_blackHoleRadiusSim * BlackHoleConstants::kDiskOuterRadiusMultiplier;
@@ -380,8 +263,7 @@ void Renderer::render(const Camera& camera, float fps) {
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(DiskBlock), &diskBlock);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-	//Update planet positions based on time
-	//For demo purposes, we fake circular orbits
+    //Update planet positions
     const double timeScale = BlackHoleConstants::kTimeScaleYearToMinute;
     double simTime = double(time) * timeScale;
     for (auto& p : m_planets) {
@@ -398,7 +280,7 @@ void Renderer::render(const Camera& camera, float fps) {
         }
     }
 
-	//Update Planet UBO (for first planet as example)
+    //Update Planet UBO
     PlanetBlock planetBlock;
     planetBlock.planetPosition = glm::vec3(0.0f, 0.0f, -80.0f);
     planetBlock.planetRadius = 2.0f;
@@ -409,29 +291,25 @@ void Renderer::render(const Camera& camera, float fps) {
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(PlanetBlock), &planetBlock);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-    glUseProgram(m_computeShader);
+    //Bind smoke and skybox textures
+    m_shaderMgr->useShader("geodesic");
 
-    glActiveTexture(GL_TEXTURE5);//Use texture unit 5
-    glBindTexture(GL_TEXTURE_2D, m_smokeTex);
-    glUniform1i(glGetUniformLocation(m_computeShader, "uSmokeTex"), 5);
+    glActiveTexture(GL_TEXTURE5);
+    m_textureMgr->bindTexture("smoke");
+    glUniform1i(m_shaderMgr->getUniformLocation("geodesic", "uSmokeTex"), 5);
 
-    glActiveTexture(GL_TEXTURE6); //Use texture unit 6
+    glActiveTexture(GL_TEXTURE6);
     glBindTexture(GL_TEXTURE_CUBE_MAP, m_skyboxTex);
-    glUniform1i(glGetUniformLocation(m_computeShader, "uSkybox"), 6);
-
+    glUniform1i(m_shaderMgr->getUniformLocation("geodesic", "uSkybox"), 6);
 
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-	//Prepare debug text lines
-	//We use stb_easy_font for simplicity
-	//Not optimal for large amounts of text and good performance
-	//But good enough for basic debug info and current project scale
+    //Prepare debug text
     std::vector<std::string> debugLines;
     glm::vec3 camPos = camera.getPosition();
-
-	std::string tab = "    ";
+    std::string tab = "    ";
 
     debugLines.push_back("Camera Info");
     debugLines.push_back(tab + "Camera Position: (" + std::to_string(camPos.x) + ", " + std::to_string(camPos.y) + ", " + std::to_string(camPos.z) + ")");
@@ -439,12 +317,12 @@ void Renderer::render(const Camera& camera, float fps) {
     debugLines.push_back("\n");
 
     debugLines.push_back("BlackHole Info");
-    debugLines.push_back(tab + "Black Hole Radius: " + std::to_string(m_simulationScale));
+    debugLines.push_back(tab + "Black Hole Radius: " + std::to_string(m_blackHoleRadiusSim));
     debugLines.push_back(tab + "Black Hole Mass: " + std::to_string(m_blackHoleMass) + " kg");
     debugLines.push_back("\n");
 
     debugLines.push_back("Simulation Info");
-    debugLines.push_back(tab + "Simulation Scale Factor:" + std::to_string(m_simulationScale));
+    debugLines.push_back(tab + "Simulation Scale Factor: " + std::to_string(m_simulationScale));
     debugLines.push_back("\n");
 
     debugLines.push_back("Planet Info");
@@ -452,16 +330,10 @@ void Renderer::render(const Camera& camera, float fps) {
         const glm::vec3& earthPos = m_planets[0].position;
         debugLines.push_back(tab + "Earth Position: (" + std::to_string(earthPos.x) + ", " + std::to_string(earthPos.y) + ", " + std::to_string(earthPos.z) + ")");
 
-        const glm::vec3& marsPos = m_planets[1].position;
-        debugLines.push_back(tab + "Mars Position: (" + std::to_string(marsPos.x) + ", " + std::to_string(marsPos.y) + ", " + std::to_string(marsPos.z) + ")");
-
-		//For demo purposes, calculate and display number of Earth orbits completed
-        //double omega_earth = m_planets[0].orbitSpeed;
-        //if (omega_earth > 0.0) {
-        //    double T = 2.0 * M_PI / omega_earth;
-        //    double orbitCount = simTime / T;
-        //    debugLines.push_back(tab + "Earth Orbits: " + std::to_string(orbitCount));
-        //}
+        if (m_planets.size() > 1) {
+            const glm::vec3& marsPos = m_planets[1].position;
+            debugLines.push_back(tab + "Mars Position: (" + std::to_string(marsPos.x) + ", " + std::to_string(marsPos.y) + ", " + std::to_string(marsPos.z) + ")");
+        }
     }
 
     //Prepare planet data for SSBO
@@ -485,17 +357,17 @@ void Renderer::render(const Camera& camera, float fps) {
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, m_planetSSBO);
 
     //Set uNumPlanets uniform
-    glUseProgram(m_computeShader);
-    glUniform1i(glGetUniformLocation(m_computeShader, "uNumPlanets"), static_cast<GLint>(m_planets.size()));
+    m_shaderMgr->useShader("geodesic");
+    glUniform1i(m_shaderMgr->getUniformLocation("geodesic", "uNumPlanets"), static_cast<GLint>(m_planets.size()));
 
-    //Bind planet textures to units 10, 11, ...
+    //Bind planet textures
     for (size_t i = 0; i < m_planets.size(); ++i) {
         glActiveTexture(GL_TEXTURE10 + static_cast<GLenum>(i));
         glBindTexture(GL_TEXTURE_2D, m_planets[i].texture);
     }
 
     //--- Compute Shader Pass ---
-    glUseProgram(m_computeShader);
+    m_shaderMgr->useShader("geodesic");
     GLuint blockIndex = glGetUniformBlockIndex(m_computeShader, "CameraBlock");
     if (blockIndex != GL_INVALID_INDEX) {
         glUniformBlockBinding(m_computeShader, blockIndex, 0);
@@ -535,136 +407,32 @@ void Renderer::render(const Camera& camera, float fps) {
 
     glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
-    //--- Bloom Extract Pass ---
-    glUseProgram(m_bloomExtractShader);
-    glBindFramebuffer(GL_FRAMEBUFFER, m_bloomExtractFBO);
-    glViewport(0, 0, m_width, m_height);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, m_renderTex);
-    glUniform1i(glGetUniformLocation(m_bloomExtractShader, "uRenderTex"), 0);
-    glUniform1f(glGetUniformLocation(m_bloomExtractShader, "uThreshold"), BlackHoleConstants::kBloomThreshold);
-    glBindVertexArray(m_quadVAO);
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-
-    //--- Bloom Blur Passes (ping-pong) ---
-    bool horizontal = true, first_iteration = true;
-    int blurPasses = 8;
-    for (int i = 0; i < blurPasses; ++i) {
-        glUseProgram(m_bloomBlurShader);
-        glBindFramebuffer(GL_FRAMEBUFFER, m_bloomBlurFBO[horizontal]);
-        glViewport(0, 0, m_width, m_height);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, first_iteration ? m_bloomExtractTex : m_bloomBlurTex[!horizontal]);
-        glUniform1i(glGetUniformLocation(m_bloomBlurShader, "uImage"), 0);
-        glUniform2f(glGetUniformLocation(m_bloomBlurShader, "uDirection"), horizontal ? 1.0f : 0.0f, horizontal ? 0.0f : 1.0f);
-        glBindVertexArray(m_quadVAO);
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-        horizontal = !horizontal;
-        if (first_iteration) first_iteration = false;
-    }
-
     //--- Final Composite Pass ---
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(0, 0, m_width, m_height);
-    glUseProgram(m_shaderProgram);
+    m_shaderMgr->useShader("blit");
+
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, m_renderTex);
-    glUniform1i(glGetUniformLocation(m_shaderProgram, "uRenderTex"), 0);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, m_bloomBlurTex[!horizontal]);
-    glUniform1i(glGetUniformLocation(m_shaderProgram, "uBloomTex"), 1);
-    glUniform1f(glGetUniformLocation(m_shaderProgram, "uBloomStrength"), BlackHoleConstants::kBloomStrength);
+    glUniform1i(m_shaderMgr->getUniformLocation("blit", "uRenderTex"), 0);
+
     glBindVertexArray(m_quadVAO);
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
-    //Draw the 3D grid only if draw grid is true
+    //Draw grid
     if (m_showGrid) {
         m_grid->draw(camera.getViewMatrix(), camera.getProjectionMatrix());
     }
 
-    if (m_showDebugText) {
-        renderDebugText(debugLines);
-    }
+    //Render debug text
+    m_debugOverlay->renderText(debugLines);
 }
 
-void Renderer::initRenderTexture() {
-    glGenTextures(1, &m_renderTex);
-    glBindTexture(GL_TEXTURE_2D, m_renderTex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, m_width, m_height, 0, GL_RGBA, GL_FLOAT, nullptr);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glBindTexture(GL_TEXTURE_2D, 0);
+//----------------- Debug Text Toggle -----------------
+void Renderer::toggleDebugText() {
+    m_debugOverlay->toggle();
 }
 
-void Renderer::initBloomTextures() {
-    //Extract texture
-    glGenTextures(1, &m_bloomExtractTex);
-    glBindTexture(GL_TEXTURE_2D, m_bloomExtractTex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, m_width, m_height, 0, GL_RGBA, GL_FLOAT, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    //Blur textures (ping-pong)
-    glGenTextures(2, m_bloomBlurTex);
-    for (int i = 0; i < 2; ++i) {
-        glBindTexture(GL_TEXTURE_2D, m_bloomBlurTex[i]);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, m_width, m_height, 0, GL_RGBA, GL_FLOAT, nullptr);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    }
-
-    //FBOs
-    glGenFramebuffers(1, &m_bloomExtractFBO);
-    glBindFramebuffer(GL_FRAMEBUFFER, m_bloomExtractFBO);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_bloomExtractTex, 0);
-    GLHelpers::checkFramebufferComplete("BloomExtract");
-
-    glGenFramebuffers(2, m_bloomBlurFBO);
-    for (int i = 0; i < 2; ++i) {
-        glBindFramebuffer(GL_FRAMEBUFFER, m_bloomBlurFBO[i]);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_bloomBlurTex[i], 0);
-        GLHelpers::checkFramebufferComplete("BloomBlur[" + std::to_string(i) + "]");
-    }
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-}
-
-//Render debug text using stb_easy_font
-void Renderer::renderDebugText(const std::vector<std::string>& lines) {
-    float x = 10.0f, y = 30.0f;
-    char buffer[99999];
-    std::vector<float> vertices;
-
-    for (const auto& line : lines) {
-        int quads = stb_easy_font_print(x, y, (char*)line.c_str(), NULL, buffer, sizeof(buffer));
-        float* buf = (float*)buffer;
-        for (int i = 0; i < quads * 4; ++i) {
-            vertices.push_back(buf[i * 4 + 0]);
-            vertices.push_back(buf[i * 4 + 1]);
-        }
-        y += 20.0f;
-    }
-
-    if (vertices.empty()) return;
-
-    glm::mat4 ortho = glm::ortho(0.0f, float(m_width), float(m_height), 0.0f);
-
-    glUseProgram(m_debugTextShader);
-    glUniformMatrix4fv(glGetUniformLocation(m_debugTextShader, "uOrtho"), 1, GL_FALSE, &ortho[0][0]);
-    glUniform3f(glGetUniformLocation(m_debugTextShader, "uColor"), 1.0f, 1.0f, 0.0f);
-
-    glBindVertexArray(m_debugTextVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, m_debugTextVBO);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    //Draw each quad as a triangle fan
-    for (size_t i = 0; i < vertices.size() / 2; i += 4) {
-        glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 8, &vertices[i * 2], GL_DYNAMIC_DRAW);
-        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-    }
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-    glUseProgram(0);
+bool Renderer::isDebugTextVisible() const {
+    return m_debugOverlay->isVisible();
 }

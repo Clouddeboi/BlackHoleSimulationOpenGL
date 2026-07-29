@@ -20,7 +20,7 @@ public:
     //Render lines of debug text
     void renderText(const std::vector<std::string>& lines);
 
-    // Visibility toggle
+    //Visibility toggle
     void setVisible(bool visible) { m_visible = visible; }
     bool isVisible() const { return m_visible; }
     void toggle() { m_visible = !m_visible; }

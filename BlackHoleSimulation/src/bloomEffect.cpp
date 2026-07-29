@@ -21,7 +21,7 @@ BloomEffect::~BloomEffect() {
 void BloomEffect::init() {
     //Load bloom shaders
     if (!m_shaderMgr.hasShader("bloom_extract")) {
-        m_shaderMgr.loadShaderProgram("bloom_extract", "shaders/bloom/extract.vert", "shaders/bloom/extract.frag");
+        m_shaderMgr.loadShaderProgram("bloom_extract", "shaders/bloomExtract.frag", "shaders/bloomBlur.frag");
     }
     if (!m_shaderMgr.hasShader("bloom_blur")) {
         m_shaderMgr.loadShaderProgram("bloom_blur", "shaders/bloom/blur.vert", "shaders/bloom/blur.frag");

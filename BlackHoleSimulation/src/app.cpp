@@ -98,10 +98,11 @@ void App::initGLAD() {
 
 //----------------- Input -----------------
 void App::processInput() {
-	//Close on Escape
+    //Close on Escape
     if (glfwGetKey(m_window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         glfwSetWindowShouldClose(m_window, true);
     }
+
     static bool gridKeyPressed = false;
     if (glfwGetKey(m_window, GLFW_KEY_G) == GLFW_PRESS) {
         if (!gridKeyPressed) {
@@ -113,7 +114,7 @@ void App::processInput() {
         gridKeyPressed = false;
     }
 
-	//Toggle debug text with H
+    //Toggle debug text with H
     static bool debugKeyPressed = false;
     if (glfwGetKey(m_window, GLFW_KEY_H) == GLFW_PRESS) {
         if (!debugKeyPressed) {

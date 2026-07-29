@@ -18,9 +18,8 @@ DebugOverlay::~DebugOverlay() {
 void DebugOverlay::init() {
     //Load debug text shader
     if (!m_shaderMgr.hasShader("debug_text")) {
-        m_shaderMgr.loadShaderProgram("debug_text", "shaders/debugText/vert.glsl", "shaders/debugText/frag.glsl");
+        m_shaderMgr.loadShaderProgram("debug_text", "shaders/debugtext/text.vert", "shaders/debugtext/text.frag");
     }
-
     initBuffers();
 }
 
@@ -29,9 +28,9 @@ void DebugOverlay::initBuffers() {
     glGenBuffers(1, &m_textVBO);
     glBindVertexArray(m_textVAO);
     glBindBuffer(GL_ARRAY_BUFFER, m_textVBO);
-    glBufferData(GL_ARRAY_BUFFER, 99999 * 4, nullptr, GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, 99999 * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
     glBindVertexArray(0);
 }
 
@@ -45,29 +44,47 @@ void DebugOverlay::renderText(const std::vector<std::string>& lines) {
     m_shaderMgr.useShader("debug_text");
 
     glm::mat4 projection = glm::ortho(0.0f, static_cast<float>(m_width),
-        0.0f, static_cast<float>(m_height));
-    glUniformMatrix4fv(m_shaderMgr.getUniformLocation("debug_text", "uProjection"),
+        static_cast<float>(m_height), 0.0f);
+    glUniformMatrix4fv(m_shaderMgr.getUniformLocation("debug_text", "uOrtho"),
         1, GL_FALSE, glm::value_ptr(projection));
+    glUniform3f(m_shaderMgr.getUniformLocation("debug_text", "uColor"),
+        1.0f, 1.0f, 0.0f);
 
     glBindVertexArray(m_textVAO);
     glBindBuffer(GL_ARRAY_BUFFER, m_textVBO);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
 
-    float yPos = static_cast<float>(m_height) - 20.0f;
-    const float lineHeight = 15.0f;
+    float x = 10.0f;
+    float y = 30.0f;
+    char buffer[99999];
+    std::vector<float> vertices;
 
+    //Accumulate all text vertices
     for (const auto& line : lines) {
-        static char buffer[99999];
-        std::vector<char> lineBuffer(line.begin(), line.end());
-        lineBuffer.push_back('\0');
-        int numQuads = stb_easy_font_print(10.0f, yPos, lineBuffer.data(), nullptr, buffer, sizeof(buffer));
+        int quads = stb_easy_font_print(x, y, const_cast<char*>(line.c_str()),
+            nullptr, buffer, sizeof(buffer));
 
-        glBufferSubData(GL_ARRAY_BUFFER, 0, numQuads * 4 * 4 * sizeof(float), buffer);
-        glDrawArrays(GL_QUADS, 0, numQuads * 4);
+        float* buf = reinterpret_cast<float*>(buffer);
 
-        yPos -= lineHeight;
+        //Extract X,Y from each vertex (stride of 4 floats per vertex)
+        for (int i = 0; i < quads * 4; ++i) {
+            vertices.push_back(buf[i * 4 + 0]);//X
+            vertices.push_back(buf[i * 4 + 1]);//Y
+        }
+
+        y += 20.0f;
+    }
+
+    if (vertices.empty()) return;
+
+    //Draw each quad as a triangle fan (4 vertices per quad)
+    for (size_t i = 0; i < vertices.size() / 2; i += 4) {
+        glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 8, &vertices[i * 2], GL_DYNAMIC_DRAW);
+        glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
     }
 
     glBindVertexArray(0);
-    glEnable(GL_DEPTH_TEST);
     glDisable(GL_BLEND);
+    glEnable(GL_DEPTH_TEST);
 }
